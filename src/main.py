@@ -1,12 +1,17 @@
 from contextlib import asynccontextmanager
-from crawling.crawling_pipeline import crawling_run
-from model.crawling_model import CrawlRequest,crawlResponse
-from fastapi import FastAPI, HTTPException
-from multiprocessing import Process, Manager, freeze_support
-import uvicorn
 
+from api.crawling_multi import crawling_run
+from api.crawling_info_list import get_info_list
+
+from model.crawling_model import CrawlRequest, crawlResponse, InfoListRequest
+
+from fastapi import FastAPI, HTTPException
+from multiprocessing import Process, Manager
+import uvicorn
+import asyncio
+from concurrent.futures import ProcessPoolExecutor
 import logging
-logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
+#logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 
 
 
@@ -32,12 +37,15 @@ async def lifespan(app:FastAPI):
 # app 실행
 app = FastAPI(lifespan=lifespan)
 
-
+# 크롤링 요청
 @app.post("/crawl")
 def start_crawling(req: CrawlRequest):
     try:
+        # 요청 데이터 확인
         keyword = req.keyword
         max_links = req.max_links
+
+        # 크롤링 상태 확인
         is_crawling_running = app.state.is_crawling_running
         print(f"[INFO] {keyword}가 검색되었습니다.")
 
@@ -48,6 +56,8 @@ def start_crawling(req: CrawlRequest):
         
         is_crawling_running.value = True
         print(f"[INFO] {keyword} 크롤링 작업을 실행합니다.")
+
+        # 크롤링 작업 실행
         p = Process(target=crawling_run, args=(keyword, max_links, is_crawling_running))
         p.start()
 
@@ -56,6 +66,89 @@ def start_crawling(req: CrawlRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# 상품 정보 목록 요청
+# 비동기로 상품 정보 목록 추출 (테스트용 - 결과를 바로 반환)
+# response: [{url, product_code, img, title, final_price, origin_price, review_count, review_rating}, ...]
+@app.post("/info_list")
+async def get_info_list_async(req: InfoListRequest):
+    try:
+        # 요청 데이터 확인
+        keyword = req.keyword
+        max_links = req.max_links
+        print(f"[INFO] {keyword} 상품 정보 목록 요청이 들어왔습니다.")
+
+        # 크롤링 상태 확인
+        is_crawling_running = app.state.is_crawling_running
+        if is_crawling_running.value == True:
+            return {"status": "processing", "message": "작업이 이미 실행 중입니다."}
+
+        is_crawling_running.value = True
+        
+        try:
+            # ProcessPoolExecutor를 사용하여 별도 프로세스에서 실행
+            with ProcessPoolExecutor(max_workers=1) as executor:
+                loop = asyncio.get_event_loop()
+                info_list = await loop.run_in_executor(
+                    executor, 
+                    get_info_list, 
+                    keyword, 
+                    max_links
+                )
+            
+            print(f"[INFO] {keyword} 상품 정보 목록 추출 완료: {len(info_list)}개 상품")
+            
+            # 결과를 바로 response에 담아서 반환
+            if len(info_list) == 0:
+                return {
+                    "status": "error", 
+                    "message": f"'{keyword}'에 대한 정보 목록을 찾을 수 없습니다.",
+                    "info_list": []
+                }
+            else:
+                return {
+                    "status": "success", 
+                    "message": f"'{keyword}'에 대한 정보 목록을 반환했습니다.",
+                    "info_list": info_list
+                }
+                
+        except Exception as e:
+            print(f"[ERROR] 상품 정보 목록 추출 중 에러: {e}")
+            return {
+                "status": "error",
+                "message": f"상품 정보 목록 추출 중 에러가 발생했습니다: {str(e)}",
+                "info_list": []
+            }
+        finally:
+            is_crawling_running.value = False
+            print(f"[INFO] {keyword} 상품 정보 목록 작업 완료")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+# 상품 정보 목록 상태 확인
+@app.get("/info_list/status/{keyword}")
+async def get_info_list_status(keyword: str):
+    """상품 정보 목록 추출 상태를 확인하는 엔드포인트"""
+    try:
+        is_crawling_running = app.state.is_crawling_running
+        
+        if is_crawling_running.value:
+            return {
+                "status": "processing",
+                "message": f"'{keyword}'에 대한 상품 정보 목록을 추출 중입니다."
+            }
+        else:
+            return {
+                "status": "completed",
+                "message": f"'{keyword}'에 대한 상품 정보 목록 추출이 완료되었습니다."
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
-    freeze_support()  # Windows 필수
+    #freeze_support()  # Windows 필수
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
