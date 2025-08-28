@@ -122,8 +122,8 @@ def get_info_list(keyword: str, max_links: int) -> list:
                 
             # 상품 제목
             try:
-                title = item.find_elements(By.TAG_NAME, 'div')[2].text
-            except (IndexError, NoSuchElementException):
+                title = item.find_element(By.XPATH, './/div[contains(@class, "ProductUnit_productName")]').text
+            except (NoSuchElementException):
                 try:
                     title = item.find_element(By.CSS_SELECTOR, '.name').text
                 except NoSuchElementException:
@@ -197,7 +197,7 @@ def get_info_list(keyword: str, max_links: int) -> list:
 
 if __name__ == "__main__":
     keyword = "선풍기"
-    max_links = 20
+    max_links = 5
     result = get_info_list(keyword,max_links)
     print(result)
 
