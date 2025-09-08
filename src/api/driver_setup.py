@@ -8,6 +8,7 @@ from fake_useragent import UserAgent
 import shutil
 import tempfile
 import sys
+import traceback
 
 # Step 1: Xvfb 실행 여부 확인
 def is_xvfb_running():
@@ -122,6 +123,7 @@ def setup_driver() -> uc.Chrome:
                 
     except Exception as e:
         print(f"[ERROR] 드라이버 설정 실패: {e}")
+        traceback.print_exc()
         # 에러 발생 시 기본 설정으로 재시도
         try:
             print("⚠ Retrying with default settings...")

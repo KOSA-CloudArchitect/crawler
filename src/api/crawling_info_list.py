@@ -4,6 +4,7 @@ import random
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
 from api.driver_setup import start_xvfb, setup_driver
+import traceback
 
 # 상품 코드 추출
 def get_product_code(url: str) -> str:
@@ -130,19 +131,25 @@ def get_info_list(keyword: str, max_links: int) -> list:
                     title = "제목 없음"
                     print("[INFO] 상품 제목 추출 실패")
                 
-            # 최종 가격
+                # 최종 가격
             try:
-                final_price = item.find_element(By.TAG_NAME, 'strong').text
+                final_price = item.find_element(
+                    By.XPATH,
+                    ".//div[contains(@class,'PriceArea_priceArea')]//div[contains(text(),'원')]"
+                ).text
+ 
             except NoSuchElementException:
                 final_price = 0
                 print("[INFO] 최종 가격 없음")
 
-            # 원래 가격
+            # 원래 가격 (취소선 del)
             try:
-                origin_price = item.find_element(By.TAG_NAME, 'del').text
+                origin_price = item.find_element(
+                    By.XPATH,
+                    ".//div[contains(@class,'PriceArea_priceArea')]//del[contains(text(),'원')]"
+                ).text
             except NoSuchElementException:
-                #print("[INFO] 원래 가격 없음")
-                origin_price = 0
+                origin_price = 0  # 원가 없을 수 있음(세일가만 노출)
                     
             # 리뷰 수 추출
             try:
@@ -189,6 +196,7 @@ def get_info_list(keyword: str, max_links: int) -> list:
         return result_list
     except Exception as e:
         print("[ERROR] 상품 url 추출 실패.:", e)
+        traceback.print_exc()
         return []
     finally:
         driver.quit()
