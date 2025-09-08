@@ -22,30 +22,29 @@ def is_xvfb_running():
 
 # Step 2: Xvfb 시작 (중복 방지)
 def start_xvfb():
-    print("▶ Starting virtual display...")
+    print("[INFO] Starting virtual display...")
     os.environ["DISPLAY"] = ":99"
     if not is_xvfb_running():
         subprocess.Popen(['Xvfb', ':99', '-screen', '0', '1920x1080x24'])
         time.sleep(2)
     else:
-        print("✔ Xvfb already running.")
+        print("[INFO] Xvfb already running.")
 
-
+# pip를 사용하여 undetected-chromedriver 설치
 def install_undetected_chromedriver():
     """undetected-chromedriver 자동 설치"""
-    print("▶ Installing undetected-chromedriver...")
+    print("[INFO] Installing undetected-chromedriver...")
     try:
         # pip를 사용하여 undetected-chromedriver 설치
         subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "undetected-chromedriver"])
-        print("✔ undetected-chromedriver 설치 완료")
+        print("[INFO] undetected-chromedriver 설치 완료")
         return True
     except subprocess.CalledProcessError as e:
         print(f"[ERROR] undetected-chromedriver 설치 실패: {e}")
         return False
 
-
+#chromedriver 경로 찾기
 def find_chromedriver_path():
-    """chromedriver 경로 찾기"""
     # 기본 경로들 확인
     possible_paths = [
         '/root/.local/share/undetected_chromedriver/undetected_chromedriver',
@@ -86,7 +85,7 @@ def setup_driver() -> uc.Chrome:
         uc_path = find_chromedriver_path()
         
         if uc_path:
-            print(f"✔ Found chromedriver at: {uc_path}")
+            print(f"[INFO] Found chromedriver at: {uc_path}")
             driver = uc.Chrome(
                 driver_executable_path=uc_path,
                 options=options,
@@ -94,12 +93,12 @@ def setup_driver() -> uc.Chrome:
                 incognito=True
             )
         else:
-            print("⚠ chromedriver not found, attempting to install...")
+            print("[INFO]chromedriver not found, attempting to install...")
             if install_undetected_chromedriver():
                 # 설치 후 다시 경로 찾기
                 uc_path = find_chromedriver_path()
                 if uc_path:
-                    print(f"✔ Using installed chromedriver at: {uc_path}")
+                    print(f"[INFO] Using installed chromedriver at: {uc_path}")
                     driver = uc.Chrome(
                         driver_executable_path=uc_path,
                         options=options,
@@ -107,14 +106,14 @@ def setup_driver() -> uc.Chrome:
                         incognito=True
                     )
                 else:
-                    print("⚠ Installation completed but chromedriver path not found, using default...")
+                    print("[INFO] Installation completed but chromedriver path not found, using default...")
                     driver = uc.Chrome(
                         options=options,
                         enable_cdp_events=True,
                         incognito=True
                     )
             else:
-                print("⚠ Installation failed, using default chromedriver...")
+                print("[INFO] Installation failed, using default chromedriver...")
                 driver = uc.Chrome(
                     options=options,
                     enable_cdp_events=True,
