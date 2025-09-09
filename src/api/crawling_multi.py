@@ -1,5 +1,4 @@
 from api.crawling_review import coupang_crawling
-from api.test import coupang_crawling_test
 from api.driver_setup import start_xvfb
 from api.kafka_producer import send_to_kafka_bridge
 
