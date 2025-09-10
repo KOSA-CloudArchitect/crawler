@@ -2,6 +2,7 @@ import re
 import time
 import random
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 #from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -49,6 +50,57 @@ def replace_thumbnail_size(url: str) -> str:
     
     return re.sub(r'/remote/[^/]+/image', '/remote/292x292ex/image', url)
 
+# 사람같은 미세 지연
+def _human_pause(min_s: float = 0.15, max_s: float = 0.35) -> None:
+    time.sleep(random.uniform(min_s, max_s))
+
+# 요소를 화면 중앙 부근으로 부드럽게 노출
+def _gently_scroll_into_view(driver, element) -> None:
+    try:
+        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
+        _human_pause(0.2, 0.4)
+        # 미세 스크롤 보정
+        jitter = random.randint(-80, -40)
+        driver.execute_script("window.scrollBy(0, arguments[0]);", jitter)
+        _human_pause(0.1, 0.25)
+    except Exception:
+        pass
+
+# 요소 위로 살짝 마우스 이동(호버)
+def _hover_element(driver, element) -> None:
+    try:
+        actions = ActionChains(driver)
+        actions.move_to_element(element).perform()
+        _human_pause(0.1, 0.3)
+        try:
+            # 아주 작은 오프셋으로 자연스러운 움직임
+            offset_x = random.randint(-3, 3)
+            offset_y = random.randint(-2, 2)
+            actions.move_by_offset(offset_x, offset_y).perform()
+            _human_pause(0.05, 0.15)
+            actions.move_by_offset(-offset_x, -offset_y).perform()
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+# 클릭 시도 안정화
+def _safe_click(element, driver, retries: int = 2) -> bool:
+    for _ in range(retries + 1):
+        try:
+            element.click()
+            return True
+        except (ElementClickInterceptedException, StaleElementReferenceException):
+            _human_pause(0.2, 0.5)
+            try:
+                driver.execute_script("arguments[0].click();", element)
+                return True
+            except Exception:
+                _human_pause(0.2, 0.4)
+        except Exception:
+            _human_pause(0.2, 0.4)
+    return False
+
 # 리뷰 10 페이지 넘기는 버튼 동작 컨트롤
 def go_next_10_page(driver, page_num, review_id):
     try:
@@ -61,10 +113,18 @@ def go_next_10_page(driver, page_num, review_id):
                 next_button = driver.find_element(By.XPATH, f'//*[@id="btfTab"]/ul[2]/li[2]/div/div[6]/section[4]/div[3]/button[12]')
         
             if next_button.is_enabled():
-                # 다음 페이지로 이동하는 로직 수행
-                next_button.click()
+                _gently_scroll_into_view(driver, next_button)
+                _hover_element(driver, next_button)
+                try:
+                    WebDriverWait(driver, 5).until(EC.element_to_be_clickable(next_button))
+                except Exception:
+                    pass
+
+                if not _safe_click(next_button, driver):
+                    return False
+
                 time.sleep(random.uniform(2,3))
-                #print("[INFO] 10 page 넘기는 버튼을 클릭했습니다.")
+                _human_pause(0.15, 0.3)
                 
             else:
                 print("버튼이 비활성화(Disabled) 상태입니다.")
@@ -82,14 +142,22 @@ def go_next_page(driver, page_num: int, review_id: str) -> bool:
         else:
             page_buttons = driver.find_element(By.XPATH, f'//*[@id="btfTab"]/ul[2]/li[2]/div/div[6]/section[4]/div[3]/button[{page_num}]')
         
-        # 처음 페이지 버튼을 누를 시 화면에 노출되야 클릭됨
+        # 처음 몇 페이지는 버튼이 화면 하단에 걸려 클릭 실패 가능성 -> 사람처럼 정렬 및 호버
         if page_num <= 3:
-            driver.execute_script("arguments[0].scrollIntoView(true);", page_buttons)
-            time.sleep(0.5)
-            driver.execute_script("window.scrollBy(0, -150);")  # 살짝 위로 올려줌
-            time.sleep(0.5)
+            _gently_scroll_into_view(driver, page_buttons)
+            _hover_element(driver, page_buttons)
+        else:
+            # 그 외 페이지도 너무 부자연스럽지 않게 가볍게 호버만
+            _hover_element(driver, page_buttons)
 
-        page_buttons.click()                               
+        try:
+            WebDriverWait(driver, 5).until(EC.element_to_be_clickable(page_buttons))
+        except Exception:
+            pass
+
+        if not _safe_click(page_buttons, driver):
+            return False
+
         time.sleep(random.uniform(2,3))
         #print(f"[INFO] {product_code} 리뷰 {page_num-1} 페이지 이동")
         return True
@@ -103,9 +171,9 @@ def get_product_info(driver) -> dict:
     try:
         product_dict = dict()
         
-        # 상품 판매 제목 추출
-        # title = driver.find_element(By.CSS_SELECTOR, 'h1.product-title').text
-        # product_dict['title'] = title
+        #상품 판매 제목 추출
+        title = driver.find_element(By.CSS_SELECTOR, 'h1.product-title').text
+        product_dict['title'] = title
 
         # # 상품 이미지 추출
         # image_url = driver.find_element(By.CSS_SELECTOR, 'div.product-image img').get_attribute('src')
@@ -252,6 +320,9 @@ def get_product_review(driver, product_dict, page_divide):
                         # 리뷰 날짜 추출
                         review_date = article.find_element(By.CSS_SELECTOR, 'div.sdp-review__article__list__info__product-info__reg-date').text
                         
+                        # 리뷰 고유 ID 추출
+                        review_id = article.get_attribute("data-review-id")
+
                         # 리뷰 글 추출
                         content = ""
                         try:
@@ -283,16 +354,21 @@ def get_product_review(driver, product_dict, page_divide):
                         except NoSuchElementException:
                             review_help_cnt = 0
 
+
                         review_dict['product_code'] = product_code
+                        review_dict['review_id'] = review_id
                         review_dict['review_rating'] = review_rating
                         review_dict['review_date'] = review_date
                         review_dict['review_content'] = content
                         review_dict['review_keywords'] = keywords
                         review_dict['review_help_cnt'] = review_help_cnt
                         
-                        # 카프카에 리뷰 전송
-                        #send_to_kafka_bridge(review_dict)
-                        product_list.append(review_dict)
+                        # 카프카에 리뷰 전송 (실패 시 경고 후 종료)
+                        kafka_send_success = send_to_kafka_bridge(review_dict)
+                        if not kafka_send_success:
+                            print("[WARN] Kafka 연결 실패: 크롤링을 종료합니다.")
+                            return None
+                        #product_list.append(review_dict)
                 except NoSuchElementException as e:
                     print(f"[INFO] elements를 찾을 수 없음:", e)
                     continue
@@ -326,7 +402,7 @@ def get_product_review(driver, product_dict, page_divide):
                 print("[INFO] 최대 루프 횟수에 도달하여 종료")
                 break
 
-        return product_list
+        return []
 
     except Exception as e:
         print(f"[ERROR] {product_code} 리뷰 추출 실패 :", e)
@@ -355,9 +431,12 @@ def coupang_crawling(args) -> None:
 
             product_dict = get_product_info(driver)
             product_list = get_product_review(driver, product_dict, page_divide)
+            if product_list is None:
+                print("[WARN] Kafka 연결 실패로 작업을 중단합니다.")
+                return
             product_code = product_dict['product_code']
 
-            print("추출된 리뷰 개수:", len(product_list))
+            #print("추출된 리뷰 개수:", len(product_list))
             print(f'[INFO] {product_code} 리뷰 추출을 완료했습니다.')
 
 
