@@ -15,6 +15,21 @@ from api.driver_setup import start_xvfb, setup_driver
 from api.kafka_producer import send_to_kafka_bridge
 from api.multi_xvfb import xvfb_display
 import traceback
+from datetime import datetime, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo  # Python 3.9+
+except Exception:
+    ZoneInfo = None  # tzdata 미설치 시 폴백 사용
+
+# KST(Asia/Seoul) 현재 시각 ISO 문자열 생성
+def _now_kst_iso() -> str:
+    try:
+        if ZoneInfo is not None:
+            return datetime.now(ZoneInfo("Asia/Seoul")).isoformat()
+    except Exception:
+        pass
+    # 폴백: 고정 오프셋 +09:00
+    return datetime.now(timezone(timedelta(hours=9))).isoformat()
 
 # xpath로 element 있는지 체크
 def check_element(xP: str, driver) -> bool:
@@ -172,8 +187,13 @@ def get_product_info(driver) -> dict:
         product_dict = dict()
         
         #상품 판매 제목 추출
-        title = driver.find_element(By.CSS_SELECTOR, 'h1.product-title').text
-        product_dict['title'] = title
+
+        try:
+            title = driver.find_element(By.CSS_SELECTOR, 'h1.product-title').text
+            product_dict['title'] = title
+        except NoSuchElementException as e:
+            product_dict['title'] = ''
+            print("[INFO] 상품 판매 제목 추출 실패:",e)
 
         # # 상품 이미지 추출
         # image_url = driver.find_element(By.CSS_SELECTOR, 'div.product-image img').get_attribute('src')
@@ -262,7 +282,7 @@ def get_product_info(driver) -> dict:
 
         return product_dict
     except Exception as e:
-        print(f"[ERROR] 상품 기본 정보 추출 실패:",e)
+        print(f"[ERROR] {product_code} 상품 기본 정보 추출 실패:",e)
         #driver.quit()
         return product_dict
 
@@ -319,9 +339,6 @@ def get_product_review(driver, product_dict, page_divide):
                         
                         # 리뷰 날짜 추출
                         review_date = article.find_element(By.CSS_SELECTOR, 'div.sdp-review__article__list__info__product-info__reg-date').text
-                        
-                        # 리뷰 고유 ID 추출
-                        review_id = article.get_attribute("data-review-id")
 
                         # 리뷰 글 추출
                         content = ""
@@ -351,6 +368,7 @@ def get_product_review(driver, product_dict, page_divide):
                         # 도움된 사람 수 추출
                         try:
                             review_help_cnt = article.find_element(By.CSS_SELECTOR, 'div.sdp-review__article__list__help').get_attribute("data-count")
+                            review_id = article.find_element(By.CSS_SELECTOR, 'div.sdp-review__article__list__help').get_attribute("data-review-id")
                         except NoSuchElementException:
                             review_help_cnt = 0
 
@@ -362,6 +380,7 @@ def get_product_review(driver, product_dict, page_divide):
                         review_dict['review_content'] = content
                         review_dict['review_keywords'] = keywords
                         review_dict['review_help_cnt'] = review_help_cnt
+                        review_dict['crawled_at'] = _now_kst_iso()
                         
                         # 카프카에 리뷰 전송 (실패 시 경고 후 종료)
                         kafka_send_success = send_to_kafka_bridge(review_dict)
@@ -369,6 +388,7 @@ def get_product_review(driver, product_dict, page_divide):
                             print("[WARN] Kafka 연결 실패: 크롤링을 종료합니다.")
                             return None
                         #product_list.append(review_dict)
+                        print(review_dict)
                 except NoSuchElementException as e:
                     print(f"[INFO] elements를 찾을 수 없음:", e)
                     continue
