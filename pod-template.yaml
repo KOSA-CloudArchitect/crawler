@@ -1,26 +1,33 @@
-# pod-template.yaml (리소스 추가 버전)
+# pod-template.yaml
 
 apiVersion: v1
 kind: Pod
 spec:
-  nodeSelector:
-    capacity-type: on-demand
-    workload: core
+  # 1. 이 nodeSelector 블록을 반드시 삭제하거나 주석 처리해야 합니다.
+  # nodeSelector:
+  #   capacity-type: on-demand
+  #   workload: core
+
+  # 2. 이 tolerations 블록을 반드시 추가해야 합니다.
+  tolerations:
+  - key: "workload"
+    operator: "Equal"
+    value: "llm-model"
+    effect: "NoSchedule"
 
   serviceAccountName: jenkins-agent
   containers:
   - name: python
-    image: python:3.9-slim
+    image: python:3.9-bullseye
     command: ["sleep"]
     args: ["infinity"]
-    # 이 부분을 추가하여 Pod의 리소스를 늘립니다.
     resources:
       requests:
-        memory: "1Gi" # 최소 1Gi 메모리 요청
-        cpu: "500m"   # 최소 0.5 CPU 코어 요청
+        memory: "1Gi"
+        cpu: "500m"
       limits:
-        memory: "2Gi" # 최대 2Gi 메모리 사용 제한
-        cpu: "1"      # 최대 1 CPU 코어 사용 제한
+        memory: "2Gi"
+        cpu: "1"
 
   - name: podman
     image: quay.io/podman/stable
