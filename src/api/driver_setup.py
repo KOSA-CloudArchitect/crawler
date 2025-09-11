@@ -86,7 +86,7 @@ def setup_driver() -> uc.Chrome:
         uc_path = find_chromedriver_path()
         
         if uc_path:
-            print(f"[INFO] Found chromedriver at: {uc_path}")
+            #print(f"[INFO] Found chromedriver at: {uc_path}")
             driver = uc.Chrome(
                 driver_executable_path=uc_path,
                 options=options,

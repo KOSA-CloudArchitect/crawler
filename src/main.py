@@ -11,7 +11,8 @@ import uvicorn
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
 import logging
-#logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
+logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
+logging.getLogger("urllib3").setLevel(logging.ERROR)
 
 
 
@@ -26,6 +27,8 @@ async def lifespan(app:FastAPI):
     # manager와 status를 app.state에 저장하여 전역적으로 접근 가능
     app.state.manager = Manager()
     app.state.is_crawling_running = app.state.manager.Value('b', False)
+    app.state.expected_count = app.state.manager.Value('i', 0)
+    app.state.counter_lock = app.state.manager.Lock()
     #print(f"초기 is_crawling_running.value: {app.state.is_crawling_running.value}")
     
     yield # yield 이전 코드는 fastapi시작할 때 실행됨 / 이후 코드는 종료될 때 실행
@@ -42,7 +45,6 @@ app = FastAPI(lifespan=lifespan)
 def start_crawling(req: CrawlRequest):
     try:
         # 요청 데이터 확인
-
         url_list = req.url_list
         job_id = req.job_id
 
@@ -55,11 +57,13 @@ def start_crawling(req: CrawlRequest):
             print("[INFO] 작업이 이미 실행중이라 요청을 반려합니다.")
             return {"status": "processing", "message": "작업이 이미 실행 중입니다."}
         
+        # 카운터 초기화 후 실행 플래그 설정
+        app.state.expected_count.value = 0
         is_crawling_running.value = True
         print(f"[INFO] job_id: {job_id} 여러 상품에 대한 크롤링 작업을 실행합니다.")
 
         # 크롤링 작업 실행
-        p = Process(target=multi_crawling_run, args=(url_list, job_id, is_crawling_running))
+        p = Process(target=multi_crawling_run, args=(url_list, job_id, is_crawling_running, app.state.expected_count, app.state.counter_lock))
         p.start()
 
         return {"status": "started", "message": f"'job_id: {job_id}'에 여러 상품에 대한 크롤링 작업을 시작했습니다."}
@@ -84,11 +88,13 @@ def start_crawling(req: CrawlProductOneRequest):
             print("[INFO] 작업이 이미 실행중이라 요청을 반려합니다.")
             return {"status": "processing", "message": "작업이 이미 실행 중입니다."}
         
+        # 카운터 초기화 후 실행 플래그 설정
+        app.state.expected_count.value = 0
         is_crawling_running.value = True
         print(f"[INFO]  job_id: {job_id} 특정 상품 분석 크롤링 작업을 실행합니다.")
 
         # 크롤링 작업 실행
-        p = Process(target=multi_product_one_crawling_run, args=(url, job_id, review_cnt, is_crawling_running))
+        p = Process(target=multi_product_one_crawling_run, args=(url, job_id, review_cnt, is_crawling_running, app.state.expected_count, app.state.counter_lock))
         p.start()
 
         return {"status": "started", "message": f"'job_id: {job_id} 대한 특정 상품 분석 크롤링 작업을 시작했습니다."}
@@ -97,8 +103,7 @@ def start_crawling(req: CrawlProductOneRequest):
 
 
 # 상품 정보 목록 요청
-# 비동기로 상품 정보 목록 추출 (테스트용 - 결과를 바로 반환)
-# response: [{url, product_code, img, title, final_price, origin_price, review_count, review_rating}, ...]
+# 비동기로 상품 정보 목록 추출
 @app.post("/info_list")
 async def get_info_list_async(req: InfoListRequest):
     try:

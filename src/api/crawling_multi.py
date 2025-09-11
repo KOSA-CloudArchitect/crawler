@@ -13,12 +13,14 @@ def generate_job_id():
     now = datetime.now()
     return "job_" + now.strftime("%Y%m%d_%H%M%S")
 
- # 시작 지터로 사이트 측 레이트 리밋 완화
+# 시작 지터로 사이트 측 레이트 리밋 완화
 def _worker_wrapper(args):
     time.sleep(random.uniform(0.0, 1.5))
-    return coupang_crawling(args)
+    result = coupang_crawling(args)
 
-def run_product_one_multi_process(url: str, job_id: str, review_cnt: int):
+    return result or 0
+
+def run_product_one_multi_process(url: str, job_id: str, review_cnt: int, expected_count=None, counter_lock=None):
     if review_cnt >= 300:
         page_divide = [0,1,2]
     else:
@@ -26,34 +28,50 @@ def run_product_one_multi_process(url: str, job_id: str, review_cnt: int):
 
     job_ids = [job_id for _ in page_divide]
     urls = [url for _ in page_divide]
+    multi_cpu = cpu_count() // 2
+    print("[INFO] multi processor 갯수: ", multi_cpu)
+    with Pool(processes=multi_cpu) as pool:
+        counts = pool.map(_worker_wrapper, zip(urls, job_ids, page_divide))
 
-    with Pool(processes=3) as pool:
-        pool.map(_worker_wrapper, zip(urls, job_ids, page_divide))
+    total = sum(counts)
+    if expected_count is not None and counter_lock is not None:
+        with counter_lock:
+            expected_count.value += int(total)
+    return total
 
-def run_multi_process(url_list: list, job_id: str) -> None:
+def run_multi_process(url_list: list, job_id: str, expected_count=None, counter_lock=None) -> None:
     # CPU 절반 사용
     multi_cpu = cpu_count() // 2
-    print("[INFO] multi processor 수: ", multi_cpu)
+    print("[INFO] multi processor 갯수: ", multi_cpu)
 
     job_ids = [job_id for _ in url_list]
+    print(job_ids )
     with Pool(processes=multi_cpu) as pool:
-        pool.map(_worker_wrapper, zip(url_list, job_ids))
+        counts = pool.map(_worker_wrapper, zip(url_list, job_ids))
+
+    total = sum(counts)
+    if expected_count is not None and counter_lock is not None:
+        with counter_lock:
+            expected_count.value += int(total)
+    return total
 
 # 여러 상품 멀티 크롤링
-def multi_crawling_run(url_list: list, job_id: str, is_crawling_running: bool) -> None:
+def multi_crawling_run(url_list: list, job_id: str, is_crawling_running: bool, expected_count=None, counter_lock=None) -> None:
     try:
 
         print(f"[INFO] 멀티프로세스 크롤링 작업 시작: {job_id}")
 
-        run_multi_process(url_list, job_id)
+        total = run_multi_process(url_list, job_id, expected_count, counter_lock)
         
         # Kafka에 크롤링 작업 완료 메시지 전송
-        data = {"job_id": job_id, "status": "done"}
+        final_count = int(expected_count.value) if expected_count is not None else int(total)
+        data = {"job_id": job_id, "status": "done", "step": "collection", "expected_count": final_count}
+        print(data)
         send_to_kafka_bridge(data)
             
         print('[INFO] 크롤링 요청 작업 완료')
     except Exception as e:
-        data = {"job_id": job_id, "status": "fail"}
+        data = {"job_id": job_id, "status": "fail", "step": "collection"}
         send_to_kafka_bridge(data)
         print(f'[ERROR] {job_id} 작업 중 에러가 발생했습니다: ',e)
         traceback.print_exc()
@@ -64,7 +82,7 @@ def multi_crawling_run(url_list: list, job_id: str, is_crawling_running: bool) -
             print(f"[WARN] 상태 업데이트 실패(무시): {e}")
 
 # 특정 상품 멀티 크롤링
-def multi_product_one_crawling_run(url: str, job_id: str, review_cnt: int, is_crawling_running: bool) -> None:
+def multi_product_one_crawling_run(url: str, job_id: str, review_cnt: int, is_crawling_running: bool, expected_count=None, counter_lock=None) -> None:
     try:
 
         print(f"[INFO] 멀티프로세스 크롤링 작업 시작: {job_id}")
@@ -72,10 +90,12 @@ def multi_product_one_crawling_run(url: str, job_id: str, review_cnt: int, is_cr
         # 가상 디스플레이 시작
         #start_xvfb()     
 
-        run_product_one_multi_process(url, job_id, review_cnt)
+        total = run_product_one_multi_process(url, job_id, review_cnt, expected_count, counter_lock)
         
         # Kafka에 크롤링 작업 완료 메시지 전송
-        data = {"job_id": job_id, "status": "done"}
+        final_count = int(expected_count.value) if expected_count is not None else int(total)
+        data = {"job_id": job_id, "status": "done", "step": "collection", "expected_count": final_count}
+        print(data)
         send_to_kafka_bridge(data)
 
         print('[INFO] 크롤링 요청 작업 완료')
