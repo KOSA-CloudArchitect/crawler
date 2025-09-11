@@ -1,22 +1,15 @@
-# Dockerfile for crawler
+# Dockerfile for crawler (arm64 compatible)
 
-# 1. 베이스 이미지를 slim이 아닌 풀 버전으로 변경
+# 1. 베이스 이미지 선택 (이전과 동일)
 FROM python:3.9-bullseye
 
 # 2. 작업 디렉토리 설정
 WORKDIR /app
 
-# 3. 필요한 패키지 설치 및 Chrome 설치
-#    apt-get update와 install을 한 줄에 실행하여 Docker 레이어 캐시 문제를 방지합니다.
+# 3. Debian 저장소를 통해 arm64용 Chromium 및 관련 도구 설치
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    unzip \
-    && wget -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && apt-get install -y /tmp/chrome.deb \
-    && rm /tmp/chrome.deb \
-    && wget -O /tmp/chromedriver.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/116.0.5845.96/linux64/chromedriver-linux64.zip \
-    && unzip /tmp/chromedriver.zip -d /usr/local/bin/ \
-    && rm /tmp/chromedriver.zip \
+    chromium \
+    chromium-driver \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
