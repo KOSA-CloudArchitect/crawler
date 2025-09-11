@@ -4,7 +4,7 @@ apiVersion: v1
 kind: Pod
 spec:
   nodeSelector:
-   # capacity-type: on-demand
+    capacity-type: on-demand
     workload: core
 
   serviceAccountName: jenkins-agent
