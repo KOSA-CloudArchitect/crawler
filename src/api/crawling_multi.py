@@ -2,14 +2,12 @@ from api.crawling_review import coupang_crawling
 from api.driver_setup import start_xvfb
 from api.kafka_producer import send_to_kafka_bridge
 
-from multiprocessing import Pool, cpu_count, freeze_support, set_start_method
+from multiprocessing import Pool, cpu_count, freeze_support
 from datetime import datetime
 import traceback
 import time
 import random
 
-
-set_start_method("spawn", force=True)
 
 def generate_job_id():
     now = datetime.now()
@@ -60,7 +58,10 @@ def multi_crawling_run(url_list: list, job_id: str, is_crawling_running: bool) -
         print(f'[ERROR] {job_id} 작업 중 에러가 발생했습니다: ',e)
         traceback.print_exc()
     finally:
-        is_crawling_running.value = False
+        try:
+            is_crawling_running.value = False
+        except Exception as e:
+            print(f"[WARN] 상태 업데이트 실패(무시): {e}")
 
 # 특정 상품 멀티 크롤링
 def multi_product_one_crawling_run(url: str, job_id: str, review_cnt: int, is_crawling_running: bool) -> None:
@@ -82,7 +83,10 @@ def multi_product_one_crawling_run(url: str, job_id: str, review_cnt: int, is_cr
         print(f'[ERROR] {job_id} 작업 중 에러가 발생했습니다: ',e)
         traceback.print_exc()
     finally:
-        is_crawling_running.value = False
+        try:
+            is_crawling_running.value = False
+        except Exception as e:
+            print(f"[WARN] 상태 업데이트 실패(무시): {e}")
 
 if __name__=="__main__":
     # search_url = '청소기'

@@ -101,7 +101,7 @@ def get_info_list(keyword: str, max_links: int) -> list:
                     url = item.find_element(By.CSS_SELECTOR, 'a').get_attribute('href')
                 except NoSuchElementException:
                     failed_count += 1
-                    print("[INFO] 상품 url 추출 실패")
+                    print("[INFO] 상품 url 추출 실패해 다음 상품으로 넘어갑니다.")
                     continue
 
             # 상품 코드 추출
@@ -131,7 +131,10 @@ def get_info_list(keyword: str, max_links: int) -> list:
                     title = "제목 없음"
                     print("[INFO] 상품 제목 추출 실패")
                 
-                # 최종 가격
+            # 가격 추출
+            final_price = 0
+            origin_price = 0
+            # 최종 가격
             try:
                 final_price = item.find_element(
                     By.XPATH,
@@ -150,7 +153,11 @@ def get_info_list(keyword: str, max_links: int) -> list:
                 ).text
             except NoSuchElementException:
                 origin_price = 0  # 원가 없을 수 있음(세일가만 노출)
-                    
+            
+            if final_price == 0 and origin_price == 0:
+                print("[INFO] 가격 정보를 못찾아 다음 상품으로 넘어갑니다.")
+                continue
+                              
             # 리뷰 수 추출
             try:
                 # 상대 경로로 변경하여 각 상품 내에서만 검색

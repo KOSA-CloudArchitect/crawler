@@ -182,4 +182,9 @@ async def get_info_list_status(keyword: str):
 
 if __name__ == "__main__":
     #freeze_support()  # Windows 필수
+    try:
+        from multiprocessing import set_start_method
+        set_start_method("spawn", force=True)
+    except Exception:
+        pass
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
