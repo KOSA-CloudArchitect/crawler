@@ -1,16 +1,24 @@
-# pod-template.yaml (환경 일치 버전)
+# pod-template.yaml
 
 apiVersion: v1
 kind: Pod
 spec:
-  nodeSelector:
-    capacity-type: on-demand
-    workload: core
+  # 1. 이 nodeSelector 블록을 반드시 삭제하거나 주석 처리해야 합니다.
+  # nodeSelector:
+  #   capacity-type: on-demand
+  #   workload: core
+
+  # 2. 이 tolerations 블록을 반드시 추가해야 합니다.
+  tolerations:
+  - key: "workload"
+    operator: "Equal"
+    value: "llm-model"
+    effect: "NoSchedule"
 
   serviceAccountName: jenkins-agent
   containers:
   - name: python
-    image: python:3.9-bullseye  # <-- slim에서 bullseye로 변경
+    image: python:3.9-bullseye
     command: ["sleep"]
     args: ["infinity"]
     resources:
