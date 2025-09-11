@@ -42,13 +42,13 @@ app = FastAPI(lifespan=lifespan)
 def start_crawling(req: CrawlRequest):
     try:
         # 요청 데이터 확인
-        product_id = req.product_id
+
         url_list = req.url_list
         job_id = req.job_id
 
         # 크롤링 상태 확인
         is_crawling_running = app.state.is_crawling_running
-        print(f"[INFO] product_id: {product_id}, job_id: {job_id} 실시간 분석 요청이 들어왔습니다.")
+        print(f"[INFO] job_id: {job_id} 여러 상품에 대한 실시간 분석 요청이 들어왔습니다.")
 
         # 상태를 True로 설정하고 새 프로세스 실행
         if is_crawling_running.value == True:
@@ -56,13 +56,13 @@ def start_crawling(req: CrawlRequest):
             return {"status": "processing", "message": "작업이 이미 실행 중입니다."}
         
         is_crawling_running.value = True
-        print(f"[INFO] product_id: {product_id}, job_id: {job_id} 크롤링 작업을 실행합니다.")
+        print(f"[INFO] job_id: {job_id} 여러 상품에 대한 크롤링 작업을 실행합니다.")
 
         # 크롤링 작업 실행
         p = Process(target=multi_crawling_run, args=(url_list, job_id, is_crawling_running))
         p.start()
 
-        return {"status": "started", "message": f"'{product_id}'에 대한 크롤링 작업을 시작했습니다."}
+        return {"status": "started", "message": f"'job_id: {job_id}'에 여러 상품에 대한 크롤링 작업을 시작했습니다."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -71,14 +71,13 @@ def start_crawling(req: CrawlRequest):
 def start_crawling(req: CrawlProductOneRequest):
     try:
         # 요청 데이터 확인
-        product_id = req.product_id
         url = req.url
         job_id = req.job_id
         review_cnt = req.review_cnt
 
         # 크롤링 상태 확인
         is_crawling_running = app.state.is_crawling_running
-        print(f"[INFO] product_id: {product_id}, job_id: {job_id} 특정 상품에 대한 실시간 분석 요청이 들어왔습니다.")
+        print(f"[INFO] job_id: {job_id} 특정 상품에 대한 실시간 분석 요청이 들어왔습니다.")
 
         # 상태를 True로 설정하고 새 프로세스 실행
         if is_crawling_running.value == True:
@@ -86,13 +85,13 @@ def start_crawling(req: CrawlProductOneRequest):
             return {"status": "processing", "message": "작업이 이미 실행 중입니다."}
         
         is_crawling_running.value = True
-        print(f"[INFO] product_id: {product_id}, job_id: {job_id} 크롤링 작업을 실행합니다.")
+        print(f"[INFO]  job_id: {job_id} 특정 상품 분석 크롤링 작업을 실행합니다.")
 
         # 크롤링 작업 실행
         p = Process(target=multi_product_one_crawling_run, args=(url, job_id, review_cnt, is_crawling_running))
         p.start()
 
-        return {"status": "started", "message": f"'{product_id}'에 대한 크롤링 작업을 시작했습니다."}
+        return {"status": "started", "message": f"'job_id: {job_id} 대한 특정 상품 분석 크롤링 작업을 시작했습니다."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
