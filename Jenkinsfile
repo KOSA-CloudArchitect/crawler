@@ -17,35 +17,60 @@ pipeline {
     }
 
     stages {
-        // Checkout, Verification, Build & Push to ECR 스테이지는 이전과 동일
-        stage('Checkout') { /* ... */ }
-        stage('Verification') { /* ... */ }
-        stage('Build & Push to ECR') { /* ... */ }
+        // Restore the full content for these stages
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Verification') {
+            steps {
+                container('python') {
+                    echo 'Running Linter, Unit Tests, etc.'
+                }
+            }
+        }
 
-        // 이 스테이지만 수정됩니다.
+        stage('Build & Push to ECR') {
+            when { branch 'main' }
+            steps {
+                script {
+                    def imageTag = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    env.FULL_IMAGE_NAME = "${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag}"
+                    
+                    def ecrPassword = container('aws-cli') {
+                        withCredentials([aws(credentialsId: 'aws-credentials-manual-test')]) {
+                            sh(script: "aws ecr get-login-password --region ${AWS_REGION}", returnStdout: true).trim()
+                        }
+                    }
+
+                    container('podman') {
+                        sh "echo '${ecrPassword}' | podman login --username AWS --password-stdin ${ECR_REGISTRY}"
+                        sh "podman build -t ${FULL_IMAGE_NAME} ."
+                        sh "podman push ${FULL_IMAGE_NAME}"
+                    }
+                }
+            }
+        }
+
+        // This stage was already correct
         stage('Update Infra Repository') {
             when { branch 'main' }
             steps {
                 withCredentials([sshUserPrivateKey(credentialsId: 'github-ssh-key', keyFileVariable: 'SSH_KEY')]) {
                     sh """
-                        # git 명령어에 사용할 SSH 키를 직접 지정
                         export GIT_SSH_COMMAND="ssh -i ${SSH_KEY} -o IdentitiesOnly=yes"
                         
-                        # GitHub 호스트 키 검증 비활성화
                         mkdir -p ~/.ssh
                         echo "Host github.com\n  StrictHostKeyChecking no" > ~/.ssh/config
                         
-                        # Infra 리포지토리 클론
                         git clone ${INFRA_REPO_URL} infra_repo
                         cd infra_repo
 
-                        # 1. image 디렉토리가 없으면 생성
                         mkdir -p image
-
-                        # 2. 최신 이미지 태그를 image/crawler.txt 파일에 덮어쓰기
                         echo "${FULL_IMAGE_NAME}" > image/crawler.txt
 
-                        # 3. Git 설정 및 변경사항 푸시
                         git config user.email "jenkins@your-domain.com"
                         git config user.name "Jenkins CI"
                         git add image/crawler.txt
