@@ -38,12 +38,16 @@ pipeline {
                     def imageTag = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
                     env.FULL_IMAGE_NAME = "${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag}"
                     
-                    container('podman') {
+                    def ecrPassword = container('aws-cli') {
                         withCredentials([aws(credentialsId: 'aws-credentials-manual-test')]) {
-                            sh "aws ecr get-login-password --region ${AWS_REGION} | podman login --username AWS --password-stdin ${ECR_REGISTRY}"
-                            sh "podman build -t ${FULL_IMAGE_NAME} ."
-                            sh "podman push ${FULL_IMAGE_NAME}"
+                            sh(script: "aws ecr get-login-password --region ${AWS_REGION}", returnStdout: true).trim()
                         }
+                    }
+
+                    container('podman') {
+                        sh "echo '${ecrPassword}' | podman login --username AWS --password-stdin ${ECR_REGISTRY}"
+                        sh "podman build -t ${FULL_IMAGE_NAME} ."
+                        sh "podman push ${FULL_IMAGE_NAME}"
                     }
                 }
             }
