@@ -1,0 +1,26 @@
+# pod-template.yaml (nodeSelector 추가 버전)
+
+apiVersion: v1
+kind: Pod
+spec:
+  # 이 부분을 추가하여 Pod가 실행될 노드를 지정합니다.
+  nodeSelector:
+    capacity-type: on-demand
+    workload: core
+
+  serviceAccountName: jenkins-agent
+  containers:
+  - name: python
+    image: python:3.9-slim
+    command: ["sleep"]
+    args: ["infinity"]
+  - name: podman
+    image: quay.io/podman/stable
+    command: ["sleep"]
+    args: ["infinity"]
+    securityContext:
+      privileged: true
+  - name: aws-cli
+    image: amazon/aws-cli:latest
+    command: ["sleep"]
+    args: ["infinity"]
