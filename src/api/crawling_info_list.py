@@ -6,6 +6,53 @@ from selenium.common.exceptions import NoSuchElementException
 from api.driver_setup import start_xvfb, setup_driver
 import traceback
 
+# 아이템 블록에서 가능한 URL을 모두 수집하고 제품 URL을 우선 선택
+def extract_item_url(item):
+    try:
+        anchors = item.find_elements(By.XPATH, './/a[@href]')
+    except Exception as e:
+        # print(f"[DEBUG] anchors 조회 실패: {e}")
+        return None
+
+    candidates = []
+    for a in anchors:
+        try:
+            href = a.get_attribute('href') or ''
+            if href:
+                candidates.append(href.strip())
+        except Exception:
+            continue
+
+    # print(f"[DEBUG] url candidates count: {len(candidates)}")
+    if not candidates:
+        return None
+
+    product_candidates = [u for u in candidates if '/vp/products/' in u]
+    chosen = product_candidates[0] if product_candidates else candidates[0]
+
+    if chosen.startswith('/'):
+        chosen = 'https://www.coupang.com' + chosen
+
+    if not chosen.startswith('http'):
+        # print(f"[DEBUG] 비정상 href 필터: {chosen}")
+        return None
+
+    # print(f"[DEBUG] 선택된 URL: {chosen}")
+    return chosen
+
+# 라인 단위로 "숫자로 시작하고 '원'으로 끝나는" 가격만 추출
+def extract_prices_kr(text: str) -> list:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    pattern = re.compile(r'^(?=\d)[\d,]+원$')
+    results = []
+    for line in lines:
+        if pattern.match(line):
+            try:
+                results.append(int(line[:-1].replace(',', '')))
+            except ValueError:
+                continue
+    return results
+
 # 상품 코드 추출
 def get_product_code(url: str) -> str:
     prod_code = url.split("products/")[-1].split("?")[0]
@@ -92,17 +139,17 @@ def get_info_list(keyword: str, max_links: int) -> list:
         for i, item in enumerate(items):
             result_dict = {}
             
-            # 링크 주소 추출 (다중 방법으로 시도)
-            url = None
-            try:
-                url = item.find_element(By.TAG_NAME, 'a').get_attribute('href')
-            except NoSuchElementException:
+            # 링크 주소 추출 (모든 a[href] 후보에서 선택)
+            url = extract_item_url(item)
+            if not url:
+                failed_count += 1
                 try:
-                    url = item.find_element(By.CSS_SELECTOR, 'a').get_attribute('href')
-                except NoSuchElementException:
-                    failed_count += 1
-                    print("[INFO] 상품 url 추출 실패해 다음 상품으로 넘어갑니다.")
-                    continue
+                    snippet = item.get_attribute("innerHTML")[:400]
+                    #print(f"[DEBUG] item innerHTML snippet: {snippet}")
+                except Exception:
+                    pass
+                print("[INFO] 상품 url 추출 실패해 다음 상품으로 넘어갑니다.")
+                continue
 
             # 상품 코드 추출
             product_code = get_product_code(url)
@@ -134,29 +181,55 @@ def get_info_list(keyword: str, max_links: int) -> list:
             # 가격 추출
             final_price = 0
             origin_price = 0
+
+            price_element = item.find_element(By.XPATH, './/div[contains(@class, "PriceArea_priceArea")]')
             # 최종 가격
             try:
-                final_price = item.find_element(
-                    By.XPATH,
-                    ".//div[contains(@class,'PriceArea_priceArea')]//div[contains(text(),'원')]"
-                ).text
+                final_price = get_num_in_str(price_element.find_element(By.XPATH, ".//div[contains(text(),'원')]").text)
  
-            except NoSuchElementException:
+            except NoSuchElementException as e:
                 final_price = 0
-                print("[INFO] 최종 가격 없음")
 
             # 원래 가격 (취소선 del)
             try:
-                origin_price = item.find_element(
-                    By.XPATH,
-                    ".//div[contains(@class,'PriceArea_priceArea')]//del[contains(text(),'원')]"
-                ).text
+                origin_price = get_num_in_str(price_element.find_element(By.XPATH, ".//del[contains(text(),'원')]").text)
             except NoSuchElementException:
                 origin_price = 0  # 원가 없을 수 있음(세일가만 노출)
             
-            if final_price == 0 and origin_price == 0:
+            # 가격 정보를 못찾을 경우: price_element.text에서 폴백 파싱 (라인 기반)
+            if final_price == 0:
+                print("[INFO] 가격 정보를 못찾아 폴백 파싱 중...")
+                raw_price_text = price_element.text
+                # print(f"[DEBUG] 폴백 후보(raw_price_text): {raw_price_text}")
+                extracted = extract_prices_kr(raw_price_text)
+                # print(f"[DEBUG] 라인기반 추출 결과: {extracted}")
+
+                if len(extracted) >= 2:
+                    origin_price = extracted[0]
+                    final_price = extracted[-1]
+                    print(f"[INFO] 폴백 파싱 성공: origin_price={origin_price}, final_price={final_price}")
+                elif len(extracted) == 1:
+                    final_price = extracted[0]
+                    origin_price = 0
+                    print(f"[INFO] 폴백 파싱 성공: final_price={final_price}")
+                else:
+                    # 최후의 보루: 임의 숫자 토큰에서 마지막 값을 최종가로 시도
+                    any_numbers = re.findall(r'\d+', raw_price_text)
+                    if any_numbers:
+                        try:
+                            final_price = int(any_numbers[-1])
+                            print(f"[INFO] 폴백 파싱 성공: final_price={final_price} (숫자 토큰)")
+                        except ValueError:
+                            final_price = 0
+                            origin_price = 0
+                if final_price == 0:
+                    print(f"[WARN] 폴백 파싱 실패: raw='{raw_price_text}'")
+
+            # 폴백 후에도 가격이 모두 없으면 스킵
+            if final_price == 0:
                 print("[INFO] 가격 정보를 못찾아 다음 상품으로 넘어갑니다.")
                 continue
+            #print(f"[INFO] 가격 정보 추출 완료: origin_price={origin_price}, final_price={final_price}")
                               
             # 리뷰 수 추출
             try:
@@ -190,10 +263,10 @@ def get_info_list(keyword: str, max_links: int) -> list:
             if review_count >= 200:
                 result_list.append(result_dict)
                 success_count += 1
-                print(f"[INFO] {i}번째 상품 처리 성공 (리뷰 {review_count}개)")
+                print(f"[INFO] {i+1}번째 상품 처리 성공 (리뷰 {review_count}개)")
             else:
                 failed_count += 1
-                print(f"[INFO] {i}번째 상품 제외 (리뷰 {review_count}개, 200개 미만)")
+                print(f"[INFO] {i+1}번째 상품 제외 (리뷰 {review_count}개, 200개 미만)")
             
             if len(result_list) >= max_links:
                 break
