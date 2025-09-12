@@ -2,9 +2,9 @@ apiVersion: v1
 kind: Pod
 spec:
   nodeSelector:
-    eks.amazonaws.com/nodegroup: core-on-20250911054745795300000001
+   # eks.amazonaws.com/nodegroup: core-on-20250911054745795300000001
    # capacity-type: on-demand
-   # workload: core
+     workload: core
   serviceAccountName: jenkins-agent
   containers:
   - name: python
