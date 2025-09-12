@@ -1,5 +1,3 @@
-// Jenkinsfile for 'crawler' repository
-
 pipeline {
     agent {
         kubernetes {
@@ -9,11 +7,12 @@ pipeline {
     }
 
     environment {
-        AWS_ACCOUNT_ID = '150297826798'
-        AWS_REGION = 'ap-northeast-2'
-        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        ECR_REPOSITORY = 'crawler'
-        INFRA_REPO_URL = 'git@github.com:KOSA-CloudArchitect/infra.git'
+        AWS_ACCOUNT_ID   = '150297826798'
+        AWS_REGION       = 'ap-northeast-2'
+        ECR_REGISTRY     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REPOSITORY   = 'crawler'
+        INFRA_REPO_URL   = 'git@github.com:KOSA-CloudArchitect/infra.git'
+        GITHUB_REPO      = 'https://github.com/KOSA-CloudArchitect/crawler'
     }
 
     stages {
@@ -35,9 +34,12 @@ pipeline {
             when { branch 'main' }
             steps {
                 script {
-                    def imageTag = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-                    env.FULL_IMAGE_NAME = "${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag}"
+                    def commitHash = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    env.COMMIT_HASH = commitHash
+                    env.GITHUB_COMMIT_URL = "${GITHUB_REPO}/commit/${commitHash}"
 
+                    env.FULL_IMAGE_NAME = "${ECR_REGISTRY}/${ECR_REPOSITORY}:${commitHash}"
+                    
                     def ecrPassword = container('aws-cli') {
                         withCredentials([aws(credentialsId: 'aws-credentials-manual-test')]) {
                             sh(script: "aws ecr get-login-password --region ${AWS_REGION}", returnStdout: true).trim()
@@ -82,20 +84,21 @@ pipeline {
 
     post {
         success {
-            discordSend description: "✅ 크롤러 CI/CD 파이프라인이 성공적으로 완료되었습니다.",
-                        footer: "빌드 번호: ${env.BUILD_NUMBER} | 이미지: ${env.FULL_IMAGE_NAME}",
-                        link: env.BUILD_URL,
-                        result: currentBuild.currentResult,
-                        title: "크롤러 젠킨스 job",
-                        webhookURL: "https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa"
-        }
-        failure {
-            discordSend description: "❌ 크롤러 CI/CD 파이프라인이 실패했습니다.",
+            discordSend description: "✅ 크롤러 CI/CD 파이프라인 성공!\n\n📌 이미지: `${env.FULL_IMAGE_NAME}`\n🔗 GitHub Commit: [${env.COMMIT_HASH}](${env.GITHUB_COMMIT_URL})",
                         footer: "빌드 번호: ${env.BUILD_NUMBER}",
                         link: env.BUILD_URL,
                         result: currentBuild.currentResult,
-                        title: "크롤러 젠킨스 job",
+                        title: "크롤러 Jenkins Job",
+                        webhookURL: "https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa"
+        }
+        failure {
+            discordSend description: "❌ 크롤러 CI/CD 파이프라인 실패\n\n🔗 GitHub Commit: [${env.COMMIT_HASH}](${env.GITHUB_COMMIT_URL})",
+                        footer: "빌드 번호: ${env.BUILD_NUMBER}",
+                        link: env.BUILD_URL,
+                        result: currentBuild.currentResult,
+                        title: "크롤러 Jenkins Job",
                         webhookURL: "https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa"
         }
     }
 }
+
