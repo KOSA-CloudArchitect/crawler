@@ -9,11 +9,11 @@ pipeline {
     }
 
     environment {
-        AWS_ACCOUNT_ID   = '150297826798'
-        AWS_REGION       = 'ap-northeast-2'
-        ECR_REGISTRY     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        ECR_REPOSITORY   = 'crawler'
-        INFRA_REPO_URL   = 'git@github.com:KOSA-CloudArchitect/infra.git'
+        AWS_ACCOUNT_ID    = '150297826798'
+        AWS_REGION        = 'ap-northeast-2'
+        ECR_REGISTRY      = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REPOSITORY    = 'crawler'
+        INFRA_REPO_URL    = 'git@github.com:KOSA-CloudArchitect/infra.git'
     }
 
     stages {
@@ -23,7 +23,7 @@ pipeline {
                 checkout scm
             }
         }
-        
+
         stage('Verification') {
             steps {
                 container('python') {
@@ -38,7 +38,7 @@ pipeline {
                 script {
                     def imageTag = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
                     env.FULL_IMAGE_NAME = "${ECR_REGISTRY}/${ECR_REPOSITORY}:${imageTag}"
-                    
+
                     def ecrPassword = container('aws-cli') {
                         withCredentials([aws(credentialsId: 'aws-credentials-manual-test')]) {
                             sh(script: "aws ecr get-login-password --region ${AWS_REGION}", returnStdout: true).trim()
@@ -61,10 +61,10 @@ pipeline {
                 withCredentials([sshUserPrivateKey(credentialsId: 'github-ssh-key', keyFileVariable: 'SSH_KEY')]) {
                     sh """
                         export GIT_SSH_COMMAND="ssh -i ${SSH_KEY} -o IdentitiesOnly=yes"
-                        
+
                         mkdir -p ~/.ssh
-                        echo "Host github.com\n  StrictHostKeyChecking no" > ~/.ssh/config
-                        
+                        echo "Host github.com\n  StrictHostKeyChecking no" > ~/.ssh/config
+
                         git clone ${INFRA_REPO_URL} infra_repo
                         cd infra_repo
 
@@ -78,6 +78,26 @@ pipeline {
                         git push origin main
                     """
                 }
+            }
+        }
+    }
+
+    // --- Discord 알림 기능 추가 ---
+    post {
+        success {
+            script {
+                discordSend (
+                    url: 'https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa',
+                    message: "✅ 크롤러 CI/CD 파이프라인이 성공적으로 완료되었습니다.\n빌드 번호: ${env.BUILD_NUMBER}\n이미지: ${env.FULL_IMAGE_NAME}"
+                )
+            }
+        }
+        failure {
+            script {
+                discordSend (
+                    url: 'https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa',
+                    message: "❌ 크롤러 CI/CD 파이프라인이 실패했습니다.\n빌드 번호: ${env.BUILD_NUMBER}"
+                )
             }
         }
     }
