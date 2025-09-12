@@ -1,42 +1,34 @@
-# pod-template.yaml
+# pod-template.yaml (환경 일치 버전)
 
 apiVersion: v1
 kind: Pod
 spec:
-  # 1. 이 nodeSelector 블록을 반드시 삭제하거나 주석 처리해야 합니다.
-  # nodeSelector:
-  #   capacity-type: on-demand
-  #   workload: core
+nodeSelector:
+capacity-type: on-demand
+workload: core
 
-  # 2. 이 tolerations 블록을 반드시 추가해야 합니다.
-  tolerations:
-  - key: "workload"
-    operator: "Equal"
-    value: "llm-model"
-    effect: "NoSchedule"
+serviceAccountName: jenkins-agent
+containers:
+- name: python
+image: python:3.9-bullseye  # <-- slim에서 bullseye로 변경
+command: ["sleep"]
+args: ["infinity"]
+resources:
+requests:
+memory: "1Gi"
+cpu: "500m"
+limits:
+memory: "2Gi"
+cpu: "1"
 
-  serviceAccountName: jenkins-agent
-  containers:
-  - name: python
-    image: python:3.9-bullseye
-    command: ["sleep"]
-    args: ["infinity"]
-    resources:
-      requests:
-        memory: "1Gi"
-        cpu: "500m"
-      limits:
-        memory: "2Gi"
-        cpu: "1"
+- name: podman
+image: quay.io/podman/stable
+command: ["sleep"]
+args: ["infinity"]
+securityContext:
+privileged: true
 
-  - name: podman
-    image: quay.io/podman/stable
-    command: ["sleep"]
-    args: ["infinity"]
-    securityContext:
-      privileged: true
-
-  - name: aws-cli
-    image: amazon/aws-cli:latest
-    command: ["sleep"]
-    args: ["infinity"]
+- name: aws-cli
+image: amazon/aws-cli:latest
+command: ["sleep"]
+args: ["infinity"]
