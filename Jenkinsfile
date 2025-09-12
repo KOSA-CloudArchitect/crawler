@@ -83,16 +83,16 @@ pipeline {
     post {
         success {
             script {
-                discordSend (
-                    url: 'https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa',
+                discord (
+                    webhookUrl: 'https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa',
                     message: "✅ 크롤러 CI/CD 파이프라인이 성공적으로 완료되었습니다.\n빌드 번호: ${env.BUILD_NUMBER}\n이미지: ${env.FULL_IMAGE_NAME}"
                 )
             }
         }
         failure {
             script {
-                discordSend (
-                    url: 'https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa',
+                discord (
+                    webhookUrl: 'https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa',
                     message: "❌ 크롤러 CI/CD 파이프라인이 실패했습니다.\n빌드 번호: ${env.BUILD_NUMBER}"
                 )
             }
