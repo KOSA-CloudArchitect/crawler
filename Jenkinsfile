@@ -9,15 +9,14 @@ pipeline {
     }
 
     environment {
-        AWS_ACCOUNT_ID    = '150297826798'
-        AWS_REGION        = 'ap-northeast-2'
-        ECR_REGISTRY      = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        ECR_REPOSITORY    = 'crawler'
-        INFRA_REPO_URL    = 'git@github.com:KOSA-CloudArchitect/infra.git'
+        AWS_ACCOUNT_ID = '150297826798'
+        AWS_REGION = 'ap-northeast-2'
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REPOSITORY = 'crawler'
+        INFRA_REPO_URL = 'git@github.com:KOSA-CloudArchitect/infra.git'
     }
 
     stages {
-        // Restore the full content for these stages
         stage('Checkout') {
             steps {
                 checkout scm
@@ -54,7 +53,6 @@ pipeline {
             }
         }
 
-        // This stage was already correct
         stage('Update Infra Repository') {
             when { branch 'main' }
             steps {
@@ -63,7 +61,7 @@ pipeline {
                         export GIT_SSH_COMMAND="ssh -i ${SSH_KEY} -o IdentitiesOnly=yes"
 
                         mkdir -p ~/.ssh
-                        echo "Host github.com\n  StrictHostKeyChecking no" > ~/.ssh/config
+                        echo "Host github.com\n  StrictHostKeyChecking no" > ~/.ssh/config
 
                         git clone ${INFRA_REPO_URL} infra_repo
                         cd infra_repo
@@ -82,7 +80,6 @@ pipeline {
         }
     }
 
-    // --- Discord 알림 기능 추가 ---
     post {
         success {
             script {
