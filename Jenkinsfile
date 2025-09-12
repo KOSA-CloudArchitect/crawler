@@ -1,3 +1,4 @@
+//  크롤러 파이프라인
 pipeline {
     agent {
         kubernetes {
