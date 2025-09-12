@@ -82,20 +82,20 @@ pipeline {
 
     post {
         success {
-            script {
-                discord (
-                    webhookUrl: 'https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa',
-                    message: "✅ 크롤러 CI/CD 파이프라인이 성공적으로 완료되었습니다.\n빌드 번호: ${env.BUILD_NUMBER}\n이미지: ${env.FULL_IMAGE_NAME}"
-                )
-            }
+            discordSend description: "✅ 크롤러 CI/CD 파이프라인이 성공적으로 완료되었습니다.",
+                        footer: "빌드 번호: ${env.BUILD_NUMBER} | 이미지: ${env.FULL_IMAGE_NAME}",
+                        link: env.BUILD_URL,
+                        result: currentBuild.currentResult,
+                        title: "크롤러 젠킨스 job",
+                        webhookURL: "https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa"
         }
         failure {
-            script {
-                discord (
-                    webhookUrl: 'https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa',
-                    message: "❌ 크롤러 CI/CD 파이프라인이 실패했습니다.\n빌드 번호: ${env.BUILD_NUMBER}"
-                )
-            }
+            discordSend description: "❌ 크롤러 CI/CD 파이프라인이 실패했습니다.",
+                        footer: "빌드 번호: ${env.BUILD_NUMBER}",
+                        link: env.BUILD_URL,
+                        result: currentBuild.currentResult,
+                        title: "크롤러 젠킨스 job",
+                        webhookURL: "https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa"
         }
     }
 }
