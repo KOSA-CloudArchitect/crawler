@@ -117,16 +117,37 @@ def _safe_click(element, driver, retries: int = 2) -> bool:
     return False
 
 # 리뷰 10 페이지 넘기는 버튼 동작 컨트롤
-def go_next_10_page(driver, page_num, review_id):
+def new_go_next_10_page(driver, page_num: int):
     try:
-
-
         for _ in range(page_num):
-            if review_id == "sdpReview":
+
+            next_btn = driver.find_element(By.CSS_SELECTOR, "button.js_reviewArticlePageNextBtn")
+            if not next_btn.get_attribute("disabled"):
+                next_btn.click()
+                time.sleep(random.uniform(2,3))
+            else:
+                print("버튼이 비활성화(Disabled) 상태입니다.")
+                return False
+        if page_num > 1:
+            print(f"[INFO] 10페이지 {page_num}번 넘기기 버튼 클릭 성공")
+        elif page_num == 1:
+            print(f"[INFO] 10페이지 넘기기 버튼 클릭 성공")
+        return True
+
+    except NoSuchElementException:
+        print("[INFO] 마지막 페이지 - 더 이상 10페이지 넘기기 버튼이 없습니다")
+        return False
+
+# 리뷰 10 페이지 넘기는 버튼 동작 컨트롤
+def go_next_10_page(driver, page_num, container_id):
+    
+    try:
+        for _ in range(page_num):
+            if container_id == "sdpReview":
                 next_button = driver.find_element(By.XPATH, '//*[@id="sdpReview"]/div/div[4]/div[2]/div/button[12]')
             else:
                 next_button = driver.find_element(By.XPATH, f'//*[@id="btfTab"]/ul[2]/li[2]/div/div[6]/section[4]/div[3]/button[12]')
-        
+  
             if next_button.is_enabled():
                 _gently_scroll_into_view(driver, next_button)
                 _hover_element(driver, next_button)
@@ -144,6 +165,8 @@ def go_next_10_page(driver, page_num, review_id):
             else:
                 print("버튼이 비활성화(Disabled) 상태입니다.")
                 return False
+        if page_num >= 1:
+            print(f"[INFO] 10페이지 {page_num}번 넘기기 버튼 클릭 성공")
         return True
     except NoSuchElementException:
         print("[INFO] 마지막 페이지 - 더 이상 10페이지 넘기기 버튼이 없습니다")
@@ -165,10 +188,7 @@ def go_next_page(driver, page_num: int, review_id: str) -> bool:
             # 그 외 페이지도 너무 부자연스럽지 않게 가볍게 호버만
             _hover_element(driver, page_buttons)
 
-        try:
-            WebDriverWait(driver, 5).until(EC.element_to_be_clickable(page_buttons))
-        except Exception:
-            pass
+        time.sleep(random.uniform(2,3))
 
         if not _safe_click(page_buttons, driver):
             return False
@@ -177,10 +197,51 @@ def go_next_page(driver, page_num: int, review_id: str) -> bool:
         #print(f"[INFO] {product_code} 리뷰 {page_num-1} 페이지 이동")
         return True
     
-    except:
+    except NoSuchElementException:
         #print(f"[INFO] 리뷰 {page_num-1} 페이지 버튼 없음.")
         return False
+def find_review_page_button(driver, page_num: int):
+    page_str = str(page_num)
+    try:
+        # 가장 안정적인: data-page 속성
+        return driver.find_element(By.CSS_SELECTOR, f"button.js_reviewArticlePageBtn[data-page='{page_str}']")
+    except NoSuchElementException:
+        pass
 
+    # Fallback: 텍스트 매칭
+    try:
+        return driver.find_element(By.XPATH, f"//button[contains(@class,'js_reviewArticlePageBtn')][normalize-space(text())='{page_str}']")
+    except NoSuchElementException:
+        pass
+
+    # 최후: JS로 전수조사
+    el = driver.execute_script("""
+        const p = arguments[0];
+        return [...document.querySelectorAll('button')].find(b => 
+            (b.dataset.page || '').trim() === p || 
+            (b.textContent || '').trim() === p
+        ) || null;
+    """, page_str)
+    if el:
+        return el
+
+    raise NoSuchElementException(f"리뷰 페이지 버튼 {page_num} 없음")
+
+
+def click_next_review_page(driver, page_num: int):
+    try:
+        btn = find_review_page_button(driver, page_num)
+        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
+        time.sleep(random.uniform(1,2))
+        btn.click()
+        time.sleep(random.uniform(2,3))  # 로딩 대기
+        print(f"[INFO] {page_num} 페이지 버튼 클릭 성공")
+        return True
+    except Exception as e:
+        print(f"[WARN] 최신 방법으로 {page_num} 페이지 버튼 클릭 실패: {e}")
+
+        return False
+        
 # 상품 기본 정보 추출
 def get_product_info(driver) -> dict:
     try:
@@ -267,7 +328,7 @@ def get_product_info(driver) -> dict:
             product_dict['sales_price'] = 0
         except ValueError:
             product_dict['sales_price'] = 0
-            print("[INFO] 할인 전 가격 없음")
+            #print("[INFO] 할인 전 가격 없음")
 
         # 할인 후 가격 추출
         try:
@@ -295,9 +356,9 @@ def get_product_review(driver, product_dict, page_divide):
 
         # 리뷰 추출
         if check_element_css("#sdpReview article", driver):
-            review_id = "sdpReview"
+            container_id = "sdpReview"
         else:
-            review_id = "btfTab"
+            container_id = "btfTab"
         
         #sort_reviews_latest(driver)
         # 리뷰를 최신순으로 정렬렬
@@ -315,22 +376,25 @@ def get_product_review(driver, product_dict, page_divide):
 
         # 특정 상품 리뷰 분석 시 10 페이지 멀티프로세싱 진행
         if page_divide != -1:
-            go_next_10_page(driver, page_divide, review_id)
+
+            success_next_10_page = go_next_10_page(driver, page_divide, container_id)
+            if not success_next_10_page:
+                success_next_10_page = new_go_next_10_page(driver, page_divide)
             multi_run = False
         else:
             multi_run = True
 
         product_list = []
-
+        total_review_count = 0
         # loop 횟수 제한
-        max_loop = 1
+        max_loop = 2
         loop_cnt = 0
         # 여러 상품 추출인 경우 처음 부터 끝까지 추출 되도록 하기
         while (1):
             loop_cnt += 1
             for p in range(2,5):
                 try:
-                    articles = driver.find_elements(By.CSS_SELECTOR, f"#{review_id} article")
+                    articles = driver.find_elements(By.CSS_SELECTOR, f"#{container_id} article")
 
                     for article in articles:
                         review_dict = product_dict.copy()
@@ -365,16 +429,16 @@ def get_product_review(driver, product_dict, page_divide):
                         except NoSuchElementException:
                             print('[INFO] Survey_list(keyword) 없음')
 
-                        # 도움된 사람 수 추출
+                        # 도움된 사람 수 추출 및 리뷰 고유 ID
                         try:
                             review_help_cnt = article.find_element(By.CSS_SELECTOR, 'div.sdp-review__article__list__help').get_attribute("data-count")
-                            review_id = article.find_element(By.CSS_SELECTOR, 'div.sdp-review__article__list__help').get_attribute("data-review-id")
+                            review_unique_id = article.find_element(By.CSS_SELECTOR, 'div.sdp-review__article__list__help').get_attribute("data-review-id")
                         except NoSuchElementException:
                             review_help_cnt = 0
 
 
                         review_dict['product_code'] = product_code
-                        review_dict['review_id'] = review_id
+                        review_dict['review_id'] = review_unique_id
                         review_dict['review_rating'] = review_rating
                         review_dict['review_date'] = review_date
                         review_dict['review_content'] = content
@@ -386,17 +450,20 @@ def get_product_review(driver, product_dict, page_divide):
                         kafka_send_success = send_to_kafka_bridge(review_dict)
                         if not kafka_send_success:
                             print("[WARN] Kafka 연결 실패: 크롤링을 종료합니다.")
-                            return None
+                            return total_review_count
                         #product_list.append(review_dict)
-                        print(review_dict)
+                        #print(review_dict)
+                        total_review_count += 1
                 except NoSuchElementException as e:
                     print(f"[INFO] elements를 찾을 수 없음:", e)
                     continue
 
-                next_page_success = go_next_page(driver, p+1, review_id)
-                
-                if not next_page_success:
-                    break
+                original_next_page_success = go_next_page(driver, p+1, container_id)
+                if not original_next_page_success:
+                    next_page_success = click_next_review_page(driver, p+1)
+                    if not next_page_success:
+                        print("[INFO] 최신 방법으로 next_page_success가 False이므로 루프 종료")
+                        break
             
             # multi_run이 False면 한 번만 실행하고 종료
             if not multi_run:
@@ -406,32 +473,35 @@ def get_product_review(driver, product_dict, page_divide):
                 else:
                     page = page_divide * 10
                 page_end = page + 9
-                print(f"[INFO] {product_code} 리뷰 {page}~{page_end}페이지 추출을 완료했습니다.")
+                print(f"[INFO] {product_code} 리뷰 {page}~{page_end}페이지 추출 후 총 {total_review_count}개 완료했습니다.")
                 break
             else:
-                # first_run이 False면 10페이지씩 넘기기 시도
-                next_10_page_success = go_next_10_page(driver, 1, review_id)
-                
-                # 10페이지 넘기기 실패하면 루프 종료
-                if not next_10_page_success:
-                    print("[INFO] next_10_page_success가 False이므로 루프 종료")
-                    break
+                # multi_run이 True면 10페이지씩 넘기기 시도
+                original_next_10_page_success = go_next_10_page(driver, 1, container_id)
+                # 10페이지 넘기기 실패하면 예전 방법으로 시도 후 에도 실패하면 루프 종료
+                if not original_next_10_page_success:
+                    #print("[INFO] next_10_page_success가 False이므로 루프 종료")
+                    next_10_page_success = new_go_next_10_page(driver, 1)
+                    if not next_10_page_success:
+                        print("[INFO] original_next_10_page_success가 False이므로 루프 종료")
+                        break
 
             # 최대 반복횟수에 도달하면 루프 종료
             if max_loop <= loop_cnt:
                 print("[INFO] 최대 루프 횟수에 도달하여 종료")
                 break
 
-        return []
+        return total_review_count
 
     except Exception as e:
         print(f"[ERROR] {product_code} 리뷰 추출 실패 :", e)
         traceback.print_exc()
-        return product_list
+        return 0
 
 # 쿠팡 리뷰 크롤링 파이프라인 
-def coupang_crawling(args) -> None:
+def coupang_crawling(args) -> int:
     driver = None
+    product_code = 'unknown'
     try:
         # page_divide 있으면
         if len(args) == 3:
@@ -450,24 +520,22 @@ def coupang_crawling(args) -> None:
             time.sleep(random.uniform(4, 5))
 
             product_dict = get_product_info(driver)
-            product_list = get_product_review(driver, product_dict, page_divide)
-            if product_list is None:
-                print("[WARN] Kafka 연결 실패로 작업을 중단합니다.")
-                return
+            review_count = get_product_review(driver, product_dict, page_divide)
             product_code = product_dict['product_code']
 
-            #print("추출된 리뷰 개수:", len(product_list))
+            print("추출된 리뷰 개수:", review_count)
             print(f'[INFO] {product_code} 리뷰 추출을 완료했습니다.')
+            return review_count
 
 
     except Exception as e:
         print(f"[ERROR] {product_code} 에러 발생 :", e)
+        return 0
     finally:
         if driver:
             driver.quit()
         else:
             print("[INFO] driver is None")
-        return
 
 
 
