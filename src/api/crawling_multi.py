@@ -24,6 +24,8 @@ def run_product_one_multi_process(url: str, job_id: str, review_cnt: int, expect
     if review_cnt >= 300:
         page_divide = [0,1,2]
     else:
+        if review_cnt  < 100:
+            review_cnt = 100
         page_divide = list(range(review_cnt // 100))
 
     job_ids = [job_id for _ in page_divide]
