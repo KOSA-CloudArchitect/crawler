@@ -1,4 +1,4 @@
-from api.crawling_review import coupang_crawling
+from api.crawling_review import coupang_crawling, _now_kst_iso
 from api.driver_setup import start_xvfb
 from api.kafka_producer import send_to_kafka_bridge
 
@@ -45,7 +45,6 @@ def run_multi_process(url_list: list, job_id: str, expected_count=None, counter_
     print("[INFO] multi processor 갯수: ", multi_cpu)
 
     job_ids = [job_id for _ in url_list]
-    print(job_ids )
     with Pool(processes=multi_cpu) as pool:
         counts = pool.map(_worker_wrapper, zip(url_list, job_ids))
 
@@ -65,14 +64,14 @@ def multi_crawling_run(url_list: list, job_id: str, is_crawling_running: bool, e
         
         # Kafka에 크롤링 작업 완료 메시지 전송
         final_count = int(expected_count.value) if expected_count is not None else int(total)
-        data = {"job_id": job_id, "status": "done", "step": "collection", "expected_count": final_count}
+        data = {"job_id": job_id, "status": "done", "step": "collection", "expected_count": final_count, "completed_at": _now_kst_iso()}
         print(data)
-        send_to_kafka_bridge(data)
+        send_to_kafka_bridge(data, "job-control-topic")
             
         print('[INFO] 크롤링 요청 작업 완료')
     except Exception as e:
-        data = {"job_id": job_id, "status": "fail", "step": "collection"}
-        send_to_kafka_bridge(data)
+        data = {"job_id": job_id, "status": "fail", "step": "collection", "completed_at": _now_kst_iso()}
+        send_to_kafka_bridge(data, "job-control-topic")
         print(f'[ERROR] {job_id} 작업 중 에러가 발생했습니다: ',e)
         traceback.print_exc()
     finally:
@@ -94,12 +93,14 @@ def multi_product_one_crawling_run(url: str, job_id: str, review_cnt: int, is_cr
         
         # Kafka에 크롤링 작업 완료 메시지 전송
         final_count = int(expected_count.value) if expected_count is not None else int(total)
-        data = {"job_id": job_id, "status": "done", "step": "collection", "expected_count": final_count}
+        data = {"job_id": job_id, "status": "done", "step": "collection", "expected_count": final_count, "completed_at": _now_kst_iso()}
         print(data)
-        send_to_kafka_bridge(data)
+        send_to_kafka_bridge(data, "job-control-topic")
 
         print('[INFO] 크롤링 요청 작업 완료')
     except Exception as e:
+        data = {"job_id": job_id, "status": "fail", "step": "collection", "completed_at": _now_kst_iso()}
+        send_to_kafka_bridge(data, "job-control-topic")
         print(f'[ERROR] {job_id} 작업 중 에러가 발생했습니다: ',e)
         traceback.print_exc()
     finally:

@@ -446,11 +446,8 @@ def get_product_review(driver, product_dict, page_divide):
                         review_dict['review_help_cnt'] = review_help_cnt
                         review_dict['crawled_at'] = _now_kst_iso()
                         
-                        # 카프카에 리뷰 전송 (실패 시 경고 후 종료)
-                        kafka_send_success = send_to_kafka_bridge(review_dict)
-                        if not kafka_send_success:
-                            print("[WARN] Kafka 연결 실패: 크롤링을 종료합니다.")
-                            return total_review_count
+                        # 카프카에 리뷰 전송 (실패 시 에러 발생)
+                        send_to_kafka_bridge(review_dict)
                         #product_list.append(review_dict)
                         #print(review_dict)
                         total_review_count += 1
