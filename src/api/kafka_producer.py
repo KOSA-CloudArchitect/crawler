@@ -1,16 +1,14 @@
 import requests
 import json
 
-def send_to_kafka_bridge(message: dict) -> bool:
+def send_to_kafka_bridge(message: dict, topic: str = "realtime-review-collection-topic") -> None:
     """
     Kafka Bridge에 dictionary 메시지를 전송하는 간단한 함수
 
-    :param bridge_url: Kafka Bridge HTTP 주소 (예: http://<NLB_DNS>:8080)
-    :param topic: 보낼 토픽 이름
     :param message: 보낼 데이터 (dict)
+    :param topic: 보낼 토픽 이름 (기본값: realtime-review-collection-topic)
     """
-    bridge_url = "http://k8s-kafka-mybridge-b907c75fa6-04c88429a93337f4.elb.ap-northeast-2.amazonaws.com:8080"
-    topic = "realtime-review-collection-topic"
+    bridge_url = "http://k8s-kafka-mybridge-4558db5d39-117a05bf86d57daa.elb.ap-northeast-2.amazonaws.com:8080"
     url = f"{bridge_url}/topics/{topic}"
     headers = {"Content-Type": "application/vnd.kafka.json.v2+json"}
     payload = {"records": [{"value": message}]}
@@ -19,10 +17,8 @@ def send_to_kafka_bridge(message: dict) -> bool:
         res = requests.post(url, headers=headers, data=json.dumps(payload), timeout=5)
         res.raise_for_status()
         #print(f"[INFO] kafka bridge 메시지 전송 성공: {message}")
-        return True
     except Exception as e:
-        print(f"[WARN] kafka bridge 전송 실패: {e}")
-        return False
+        raise RuntimeError(f"Kafka 전송 실패: {e}")
 
 
 
