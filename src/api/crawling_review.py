@@ -513,14 +513,11 @@ def coupang_crawling(args) -> int:
         with xvfb_display(width=1920, height=1080, depth=24) as disp:
             # 이제 DISPLAY가 설정됨. headless 불필요.
             driver = setup_driver()
-            print("[INFO] 드라이버 셋업 완료")
             driver.get(product_url)
             time.sleep(random.uniform(4, 5))
-            print("[INFO] 상품 정보 추출 시작")
             product_dict = get_product_info(driver)
-            print("[INFO] 상품 정보 추출 완료")
+            product_dict['job_id'] = job_id
             review_count = get_product_review(driver, product_dict, page_divide)
-            print("[INFO] 리뷰 추출 완료")
             product_code = product_dict['product_code']
 
             print("추출된 리뷰 개수:", review_count)
