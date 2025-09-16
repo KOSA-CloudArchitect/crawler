@@ -1,67 +1,65 @@
+pipeline {
+    agent {
+        kubernetes {
+            cloud 'kubernetes'    // Cloud 이름
+            namespace 'jenkins'
+            defaultContainer 'jnlp'
+            yaml """
 apiVersion: v1
 kind: Pod
 metadata:
   labels:
-    jenkins: "slave"
-    app: "crawler-agent"
+    app: crawler-agent
 spec:
-  nodeSelector:
-    workload: core
-  serviceAccountName: jenkins-agent
   containers:
   - name: python
-    image: python:3.11-slim  # Dockerfile과 동일한 베이스 이미지 사용
-    command: ["sleep"]
-    args: ["infinity"]
+    image: python:3.11-slim
+    command:
+    - cat
+    tty: true
     resources:
       requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
         memory: "1Gi"
         cpu: "500m"
-      limits:
-        memory: "2Gi"
-        cpu: "1"
-    # Dockerfile의 패키지 설치를 여기에 추가
-    lifecycle:
-      postStart:
-        exec:
-          command:
-            - "/bin/sh"
-            - "-c"
-            - |
-              # 시스템 패키지 업데이트 및 설치 (Dockerfile 내용과 동일)
-              apt-get update && apt-get install -y \
-                wget \
-                gnupg \
-                unzip \
-                curl \
-                xvfb \
-                && rm -rf /var/lib/apt/lists/*
-              
-              # Chrome 설치
-              wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg
-              echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list
-              apt-get update && apt-get install -y google-chrome-stable
-              
-              # ChromeDriver 설치
-              CHROME_VERSION=$(google-chrome --version | awk '{print $3}')
-              CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_VERSION%.*}")
-              wget -O /tmp/chromedriver.zip "https://storage.googleapis.com/chrome-for-testing-public/$CHROMEDRIVER_VERSION/linux64/chromedriver-linux64.zip"
-              unzip /tmp/chromedriver.zip -d /tmp/
-              mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/
-              chmod +x /usr/local/bin/chromedriver
-              rm -rf /tmp/chromedriver* /tmp/chromedriver-linux64
-              
-              # Python 패키지 설치
-              pip install --no-cache-dir -r requirements.txt
-              pip install --no-cache-dir undetected-chromedriver
-              
   - name: podman
     image: quay.io/podman/stable
-    command: ["sleep"]
-    args: ["infinity"]
-    securityContext:
-      privileged: true
+    command:
+    - cat
+    tty: true
   - name: aws-cli
     image: amazon/aws-cli:latest
-    command: ["sleep"]
-    args: ["infinity"]
+    command:
+    - cat
+    tty: true
+  - name: jnlp
+    image: jenkins/inbound-agent:latest
+    env:
+    - name: JENKINS_URL
+      value: "http://hihypipe-jenkins-alb-610592627.ap-northeast-2.elb.amazonaws.com:8080"
+    - name: JENKINS_WEB_SOCKET
+      value: "true"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  restartPolicy: Never
+"""
+        }
+    }
+    stages {
+        stage('Test') {
+            steps {
+                container('python') {
+                    sh 'python --version'
+                }
+            }
+        }
+    }
+}
+
