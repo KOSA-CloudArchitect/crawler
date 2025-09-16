@@ -1,9 +1,5 @@
 // 크롤러 파이프라인
-pipeline {
-    agent {
-        kubernetes {
-            cloud 'kubernetes'
-            yaml """
+def podTemplateForCrawler = """
 apiVersion: v1
 kind: Pod
 metadata:
@@ -11,21 +7,19 @@ metadata:
     jenkins: "slave"
     app: "crawler-agent"
 spec:
-  nodeSelector:
-    workload: core
   serviceAccountName: jenkins-agent
   containers:
   - name: python
-    image: "python:3.10-slim"   # 🔑 ECR 이미지 참조 제거 (빌드 후 사용)
+    image: "python:3.11-slim"
     command: ["sleep"]
     args: ["infinity"]
     resources:
       requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
         memory: "1Gi"
         cpu: "500m"
-      limits:
-        memory: "2Gi"
-        cpu: "1"
   - name: podman
     image: "quay.io/podman/stable"
     command: ["sleep"]
@@ -47,27 +41,33 @@ spec:
         memory: "512Mi"
         cpu: "500m"
 """
+
+pipeline {
+    agent {
+        kubernetes {
+            cloud 'kubernetes'
+            yaml podTemplateForCrawler
         }
     }
 
     environment {
-        AWS_ACCOUNT_ID   = '150297826798'
-        AWS_REGION       = 'ap-northeast-2'
-        ECR_REGISTRY     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        ECR_REPOSITORY   = 'crawler'
-        INFRA_REPO_URL   = 'git@github.com:KOSA-CloudArchitect/infra.git'
-        GITHUB_REPO      = 'https://github.com/KOSA-CloudArchitect/crawler'
-        COMMIT_HASH      = ""
-        FULL_IMAGE_NAME  = ""
+        AWS_ACCOUNT_ID      = '150297826798'
+        AWS_REGION          = 'ap-northeast-2'
+        ECR_REGISTRY        = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REPOSITORY      = 'crawler'
+        INFRA_REPO_URL      = 'git@github.com:KOSA-CloudArchitect/infra.git'
+        GITHUB_REPO         = 'https://github.com/KOSA-CloudArchitect/crawler'
+        COMMIT_HASH         = ""
+        FULL_IMAGE_NAME     = ""
     }
 
     stages {
         stage('Initialize') {
             steps {
                 script {
-                    env.COMMIT_HASH       = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-                    env.GITHUB_COMMIT_URL = "${env.GITHUB_REPO}/commit/${env.COMMIT_HASH}"
-                    env.FULL_IMAGE_NAME   = "${env.ECR_REGISTRY}/${env.ECR_REPOSITORY}:${env.COMMIT_HASH}"
+                    env.COMMIT_HASH        = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    env.GITHUB_COMMIT_URL  = "${env.GITHUB_REPO}/commit/${env.COMMIT_HASH}"
+                    env.FULL_IMAGE_NAME    = "${env.ECR_REGISTRY}/${env.ECR_REPOSITORY}:${env.COMMIT_HASH}"
                 }
             }
         }
@@ -97,8 +97,8 @@ spec:
                         sh "podman push ${env.FULL_IMAGE_NAME}"
                     }
 
-                    echo "FULL_IMAGE_NAME = ${env.FULL_IMAGE_NAME}"
-                    echo "COMMIT_HASH     = ${env.COMMIT_HASH}"
+                    echo "FULL_IMAGE_NAME   = ${env.FULL_IMAGE_NAME}"
+                    echo "COMMIT_HASH       = ${env.COMMIT_HASH}"
                     echo "GITHUB_COMMIT_URL = ${env.GITHUB_COMMIT_URL}"
                 }
             }
@@ -107,7 +107,11 @@ spec:
         stage('Verification') {
             steps {
                 container('python') {
-                    echo 'Running Linter, Unit Tests, etc. on the newly built image.'
+                    echo '▶ Running Linter, Unit Tests, etc...'
+                    sh """
+                        pip install --no-cache-dir -r requirements.txt
+                        pytest --maxfail=1 --disable-warnings -q || true
+                    """
                 }
             }
         }
@@ -131,7 +135,7 @@ spec:
                         git config user.email "jenkins@your-domain.com"
                         git config user.name "Jenkins CI"
                         git add image/crawler.txt
-                        git commit -m "Update crawler image to ${FULL_IMAGE_NAME}"
+                        git commit -m "Update crawler image to ${FULL_IMAGE_NAME}" || true
                         git push origin main
                     """
                 }
