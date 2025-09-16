@@ -1,5 +1,6 @@
 import requests
 import json
+import os
 
 def send_to_kafka_bridge(message: dict, topic: str = "realtime-review-collection-topic") -> None:
     """
@@ -8,7 +9,9 @@ def send_to_kafka_bridge(message: dict, topic: str = "realtime-review-collection
     :param message: 보낼 데이터 (dict)
     :param topic: 보낼 토픽 이름 (기본값: realtime-review-collection-topic)
     """
-    bridge_url = "http://k8s-kafka-mybridge-4558db5d39-117a05bf86d57daa.elb.ap-northeast-2.amazonaws.com:8080"
+    # 환경변수에서 bridge host를 가져오고, 없으면 기본값 사용
+    bridge_host = os.environ.get("KAFKA_BRIDGE_HOST", "k8s-kafka-mybridge-4558db5d39-117a05bf86d57daa.elb.ap-northeast-2.amazonaws.com")
+    bridge_url = f"http://{bridge_host}:8080"
     url = f"{bridge_url}/topics/{topic}"
     headers = {"Content-Type": "application/vnd.kafka.json.v2+json"}
     payload = {"records": [{"value": message}]}
