@@ -14,7 +14,13 @@ def send_to_kafka_bridge(message: dict, topic: str = "realtime-review-collection
     bridge_url = f"http://{bridge_host}:8080"
     url = f"{bridge_url}/topics/{topic}"
     headers = {"Content-Type": "application/vnd.kafka.json.v2+json"}
-    payload = {"records": [{"value": message}]}
+
+    # job_id를 key로 사용 (없으면 오류)
+    job_id = message.get("job_id")
+    if job_id is None:
+        raise ValueError("Kafka 전송 실패: message에 'job_id'가 필요합니다")
+
+    payload = {"records": [{"key": str(job_id), "value": message}]}
 
     try:
         res = requests.post(url, headers=headers, data=json.dumps(payload), timeout=5)
