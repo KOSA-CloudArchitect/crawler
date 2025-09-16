@@ -1,5 +1,9 @@
 // 크롤러 파이프라인
-def podTemplateForCrawler = """
+pipeline {
+    agent {
+        kubernetes {
+            cloud 'kubernetes'
+            yaml """
 apiVersion: v1
 kind: Pod
 metadata:
@@ -12,7 +16,7 @@ spec:
   serviceAccountName: jenkins-agent
   containers:
   - name: python
-    image: "${ECR_REGISTRY}/${ECR_REPOSITORY}:${COMMIT_HASH}"
+    image: "python:3.10-slim"   # 🔑 ECR 이미지 참조 제거 (빌드 후 사용)
     command: ["sleep"]
     args: ["infinity"]
     resources:
@@ -43,31 +47,25 @@ spec:
         memory: "512Mi"
         cpu: "500m"
 """
-
-pipeline {
-    agent {
-        kubernetes {
-            cloud 'kubernetes'
-            yaml podTemplateForCrawler
         }
     }
 
     environment {
-        AWS_ACCOUNT_ID      = '150297826798'
-        AWS_REGION          = 'ap-northeast-2'
-        ECR_REGISTRY        = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        ECR_REPOSITORY      = 'crawler'
-        INFRA_REPO_URL      = 'git@github.com:KOSA-CloudArchitect/infra.git'
-        GITHUB_REPO         = 'https://github.com/KOSA-CloudArchitect/crawler'
-        COMMIT_HASH = ""
-        FULL_IMAGE_NAME = ""
+        AWS_ACCOUNT_ID   = '150297826798'
+        AWS_REGION       = 'ap-northeast-2'
+        ECR_REGISTRY     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REPOSITORY   = 'crawler'
+        INFRA_REPO_URL   = 'git@github.com:KOSA-CloudArchitect/infra.git'
+        GITHUB_REPO      = 'https://github.com/KOSA-CloudArchitect/crawler'
+        COMMIT_HASH      = ""
+        FULL_IMAGE_NAME  = ""
     }
 
     stages {
         stage('Initialize') {
             steps {
                 script {
-                    env.COMMIT_HASH     = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    env.COMMIT_HASH       = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
                     env.GITHUB_COMMIT_URL = "${env.GITHUB_REPO}/commit/${env.COMMIT_HASH}"
                     env.FULL_IMAGE_NAME   = "${env.ECR_REGISTRY}/${env.ECR_REPOSITORY}:${env.COMMIT_HASH}"
                 }
@@ -164,3 +162,4 @@ pipeline {
         }
     }
 }
+
