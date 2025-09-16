@@ -1,4 +1,4 @@
-// 크롤러 파이프라인
+// 크롤러 파이프라인 (ALB + WebSocket 지원)
 def podTemplateForCrawler = """
 apiVersion: v1
 kind: Pod
@@ -33,6 +33,11 @@ spec:
   - name: jnlp
     image: "jenkins/inbound-agent:3327.v868139a_d00e0-6"
     args: ["\$(JENKINS_AGENT_NAME)", "\$(JENKINS_SECRET)"]
+    env:
+      - name: JENKINS_WEB_SOCKET
+        value: "true"
+      - name: JENKINS_URL
+        value: "http://hihypipe-jenkins-alb-610592627.ap-northeast-2.elb.amazonaws.com:8080/"
     resources:
       requests:
         memory: "256Mi"
@@ -73,9 +78,7 @@ pipeline {
         }
 
         stage('Checkout') {
-            steps {
-                checkout scm
-            }
+            steps { checkout scm }
         }
 
         stage('Build & Push to ECR') {
@@ -107,7 +110,6 @@ pipeline {
         stage('Verification') {
             steps {
                 container('python') {
-                    echo '▶ Running Linter, Unit Tests, etc...'
                     sh """
                         pip install --no-cache-dir -r requirements.txt
                         pytest --maxfail=1 --disable-warnings -q || true
@@ -151,7 +153,7 @@ pipeline {
                 link: env.BUILD_URL,
                 result: currentBuild.currentResult,
                 title: "크롤러 Jenkins Job",
-                webhookURL: "https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa"
+                webhookURL: "<YOUR_DISCORD_WEBHOOK_URL>"
             )
         }
         failure {
@@ -161,7 +163,7 @@ pipeline {
                 link: env.BUILD_URL,
                 result: currentBuild.currentResult,
                 title: "크롤러 Jenkins Job",
-                webhookURL: "https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa"
+                webhookURL: "<YOUR_DISCORD_WEBHOOK_URL>"
             )
         }
     }
