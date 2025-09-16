@@ -1,6 +1,5 @@
-// 크롤러 파이프라인 (ALB + WebSocket 지원)
-def podTemplateForCrawler = """
-apiVersion: v1
+// Jenkinsfile - crawler pipeline (fixed for internal JNLP connection)
+def podTemplateForCrawler = '''apiVersion: v1
 kind: Pod
 metadata:
   labels:
@@ -32,12 +31,11 @@ spec:
     args: ["infinity"]
   - name: jnlp
     image: "jenkins/inbound-agent:3327.v868139a_d00e0-6"
-    args: ["\$(JENKINS_AGENT_NAME)", "\$(JENKINS_SECRET)"]
+    # Use args with -url and pass secret & name placeholders (literal, not Groovy-interpolated)
+    args: ['-url', 'http://jenkins.jenkins.svc.cluster.local:8080', '${JENKINS_SECRET}', '${JENKINS_AGENT_NAME}']
     env:
       - name: JENKINS_WEB_SOCKET
         value: "true"
-      - name: JENKINS_URL
-        value: "http://hihypipe-jenkins-alb-610592627.ap-northeast-2.elb.amazonaws.com:8080/"
     resources:
       requests:
         memory: "256Mi"
@@ -45,7 +43,8 @@ spec:
       limits:
         memory: "512Mi"
         cpu: "500m"
-"""
+  restartPolicy: Never
+'''
 
 pipeline {
     agent {
