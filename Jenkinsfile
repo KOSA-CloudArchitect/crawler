@@ -1,33 +1,82 @@
-//  크롤러 파이프라인 
+// Jenkinsfile (최적화 버전)
+
 pipeline {
     agent {
         kubernetes {
             cloud 'kubernetes'
-            yamlFile 'pod-template.yaml'
+            // pod-template.yaml 파일 대신, 파이프라인 내에서 PodTemplate을 직접 정의합니다.
+            podTemplate {
+                label 'crawler-pod'
+                spec {
+                    containers {
+                        // 'Build & Push' 스테이지에서 빌드된 이미지를 사용하도록 변경
+                        container {
+                            name 'python'
+                            image "${ECR_REGISTRY}/${ECR_REPOSITORY}:${COMMIT_HASH}"
+                            command 'sleep'
+                            args 'infinity'
+                            resources {
+                                requests {
+                                    memory '1Gi'
+                                    cpu '500m'
+                                }
+                                limits {
+                                    memory '2Gi'
+                                    cpu '1'
+                                }
+                            }
+                        }
+                        container {
+                            name 'podman'
+                            image 'quay.io/podman/stable'
+                            command 'sleep'
+                            args 'infinity'
+                            securityContext {
+                                privileged true
+                            }
+                        }
+                        container {
+                            name 'aws-cli'
+                            image 'amazon/aws-cli:latest'
+                            command 'sleep'
+                            args 'infinity'
+                        }
+                        // jnlp 컨테이너는 자동으로 추가됩니다.
+                    }
+                    nodeSelector {
+                        key 'workload'
+                        value 'core'
+                    }
+                    serviceAccount 'jenkins-agent'
+                }
+            }
         }
     }
 
     environment {
-        AWS_ACCOUNT_ID   = '150297826798'
-        AWS_REGION       = 'ap-northeast-2'
-        ECR_REGISTRY     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        ECR_REPOSITORY   = 'crawler'
-        INFRA_REPO_URL   = 'git@github.com:KOSA-CloudArchitect/infra.git'
-        GITHUB_REPO      = 'https://github.com/KOSA-CloudArchitect/crawler'
+        AWS_ACCOUNT_ID      = '150297826798'
+        AWS_REGION          = 'ap-northeast-2'
+        ECR_REGISTRY        = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REPOSITORY      = 'crawler'
+        INFRA_REPO_URL      = 'git@github.com:KOSA-CloudArchitect/infra.git'
+        GITHUB_REPO         = 'https://github.com/KOSA-CloudArchitect/crawler'
     }
 
     stages {
+        stage('Initialize') {
+            steps {
+                script {
+                    // Commit Hash 및 Image 정보를 미리 세팅
+                    env.COMMIT_HASH     = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    env.GITHUB_COMMIT_URL = "${env.GITHUB_REPO}/commit/${env.COMMIT_HASH}"
+                    env.FULL_IMAGE_NAME   = "${env.ECR_REGISTRY}/${env.ECR_REPOSITORY}:${env.COMMIT_HASH}"
+                }
+            }
+        }
+        
         stage('Checkout') {
             steps {
                 checkout scm
-            }
-        }
-
-        stage('Verification') {
-            steps {
-                container('python') {
-                    echo 'Running Linter, Unit Tests, etc.'
-                }
             }
         }
 
@@ -35,11 +84,6 @@ pipeline {
             when { branch 'main' }
             steps {
                 script {
-                    // Commit Hash 및 Image 정보 세팅
-                    env.COMMIT_HASH       = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-                    env.GITHUB_COMMIT_URL = "${env.GITHUB_REPO}/commit/${env.COMMIT_HASH}"
-                    env.FULL_IMAGE_NAME   = "${env.ECR_REGISTRY}/${env.ECR_REPOSITORY}:${env.COMMIT_HASH}"
-
                     // ECR 로그인
                     def ecrPassword = container('aws-cli') {
                         withCredentials([aws(credentialsId: 'aws-credentials-manual-test')]) {
@@ -61,6 +105,15 @@ pipeline {
                     echo "FULL_IMAGE_NAME = ${env.FULL_IMAGE_NAME}"
                     echo "COMMIT_HASH     = ${env.COMMIT_HASH}"
                     echo "GITHUB_COMMIT_URL = ${env.GITHUB_COMMIT_URL}"
+                }
+            }
+        }
+        
+        stage('Verification') {
+            steps {
+                // ECR에서 빌드된 최신 이미지를 사용해 테스트
+                container('python') {
+                    echo 'Running Linter, Unit Tests, etc. on the newly built image.'
                 }
             }
         }
@@ -115,4 +168,3 @@ pipeline {
         }
     }
 }
-
