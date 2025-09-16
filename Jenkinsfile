@@ -34,7 +34,7 @@ spec:
     args: ["infinity"]
   - name: jnlp
     image: "jenkins/inbound-agent:3327.v868139a_d00e0-6"
-    args: ["$(JENKINS_AGENT_NAME)", "$(JENKINS_SECRET)"]
+    args: ["\$(JENKINS_AGENT_NAME)", "\$(JENKINS_SECRET)"]
     resources:
       requests:
         memory: "256Mi"
