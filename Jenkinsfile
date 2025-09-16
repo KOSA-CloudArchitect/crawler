@@ -1,55 +1,54 @@
-// Jenkinsfile (최적화 버전)
+// 크롤러 파이프라인
+def podTemplateForCrawler = """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    jenkins: "slave"
+    app: "crawler-agent"
+spec:
+  nodeSelector:
+    workload: core
+  serviceAccountName: jenkins-agent
+  containers:
+  - name: python
+    image: "${ECR_REGISTRY}/${ECR_REPOSITORY}:${COMMIT_HASH}"
+    command: ["sleep"]
+    args: ["infinity"]
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1"
+  - name: podman
+    image: "quay.io/podman/stable"
+    command: ["sleep"]
+    args: ["infinity"]
+    securityContext:
+      privileged: true
+  - name: aws-cli
+    image: "amazon/aws-cli:latest"
+    command: ["sleep"]
+    args: ["infinity"]
+  - name: jnlp
+    image: "jenkins/inbound-agent:3327.v868139a_d00e0-6"
+    args: ["$(JENKINS_AGENT_NAME)", "$(JENKINS_SECRET)"]
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+"""
 
 pipeline {
     agent {
         kubernetes {
             cloud 'kubernetes'
-            // pod-template.yaml 파일 대신, 파이프라인 내에서 PodTemplate을 직접 정의합니다.
-            podTemplate {
-                label 'crawler-pod'
-                spec {
-                    containers {
-                        // 'Build & Push' 스테이지에서 빌드된 이미지를 사용하도록 변경
-                        container {
-                            name 'python'
-                            image "${ECR_REGISTRY}/${ECR_REPOSITORY}:${COMMIT_HASH}"
-                            command 'sleep'
-                            args 'infinity'
-                            resources {
-                                requests {
-                                    memory '1Gi'
-                                    cpu '500m'
-                                }
-                                limits {
-                                    memory '2Gi'
-                                    cpu '1'
-                                }
-                            }
-                        }
-                        container {
-                            name 'podman'
-                            image 'quay.io/podman/stable'
-                            command 'sleep'
-                            args 'infinity'
-                            securityContext {
-                                privileged true
-                            }
-                        }
-                        container {
-                            name 'aws-cli'
-                            image 'amazon/aws-cli:latest'
-                            command 'sleep'
-                            args 'infinity'
-                        }
-                        // jnlp 컨테이너는 자동으로 추가됩니다.
-                    }
-                    nodeSelector {
-                        key 'workload'
-                        value 'core'
-                    }
-                    serviceAccount 'jenkins-agent'
-                }
-            }
+            yaml podTemplateForCrawler
         }
     }
 
@@ -60,20 +59,21 @@ pipeline {
         ECR_REPOSITORY      = 'crawler'
         INFRA_REPO_URL      = 'git@github.com:KOSA-CloudArchitect/infra.git'
         GITHUB_REPO         = 'https://github.com/KOSA-CloudArchitect/crawler'
+        COMMIT_HASH = ""
+        FULL_IMAGE_NAME = ""
     }
 
     stages {
         stage('Initialize') {
             steps {
                 script {
-                    // Commit Hash 및 Image 정보를 미리 세팅
                     env.COMMIT_HASH     = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
                     env.GITHUB_COMMIT_URL = "${env.GITHUB_REPO}/commit/${env.COMMIT_HASH}"
                     env.FULL_IMAGE_NAME   = "${env.ECR_REGISTRY}/${env.ECR_REPOSITORY}:${env.COMMIT_HASH}"
                 }
             }
         }
-        
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -84,7 +84,6 @@ pipeline {
             when { branch 'main' }
             steps {
                 script {
-                    // ECR 로그인
                     def ecrPassword = container('aws-cli') {
                         withCredentials([aws(credentialsId: 'aws-credentials-manual-test')]) {
                             return sh(
@@ -94,24 +93,21 @@ pipeline {
                         }
                     }
 
-                    // 이미지 빌드 & 푸시
                     container('podman') {
                         sh "echo '${ecrPassword}' | podman login --username AWS --password-stdin ${env.ECR_REGISTRY}"
                         sh "podman build -t ${env.FULL_IMAGE_NAME} ."
                         sh "podman push ${env.FULL_IMAGE_NAME}"
                     }
 
-                    // 디버깅용 로그 출력
                     echo "FULL_IMAGE_NAME = ${env.FULL_IMAGE_NAME}"
                     echo "COMMIT_HASH     = ${env.COMMIT_HASH}"
                     echo "GITHUB_COMMIT_URL = ${env.GITHUB_COMMIT_URL}"
                 }
             }
         }
-        
+
         stage('Verification') {
             steps {
-                // ECR에서 빌드된 최신 이미지를 사용해 테스트
                 container('python') {
                     echo 'Running Linter, Unit Tests, etc. on the newly built image.'
                 }
