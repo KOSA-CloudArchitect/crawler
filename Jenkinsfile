@@ -1,4 +1,4 @@
-//  크롤러 파이프라인 bulid test
+//  크롤러 파이프라인 
 pipeline {
     agent {
         kubernetes {
