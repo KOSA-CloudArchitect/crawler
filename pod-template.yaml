@@ -1,44 +1,35 @@
+# pod-template.yaml (Final Version)
+
 apiVersion: v1
 kind: Pod
-metadata:
-  labels:
-    app: crawler-agent
 spec:
+  # The service account in your EKS 'jenkins' namespace
+  serviceAccountName: jenkins-agent
+  
   containers:
+  # Python container for verification steps
   - name: python
     image: python:3.11-slim
-    command:
-    - cat
-    tty: true
+    command: ["sleep"]
+    args: ["infinity"]
     resources:
       requests:
-        memory: "512Mi"
-        cpu: "250m"
-      limits:
         memory: "1Gi"
         cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1"
+
+  # Podman container for building images
   - name: podman
     image: quay.io/podman/stable
-    command:
-    - cat
-    tty: true
+    command: ["sleep"]
+    args: ["infinity"]
+    securityContext:
+      privileged: true
+
+  # AWS CLI container for ECR login
   - name: aws-cli
     image: amazon/aws-cli:latest
-    command:
-    - cat
-    tty: true
-  - name: jnlp
-    image: jenkins/inbound-agent:3327.v868139a_d00e0-6
-    args: ['-url', 'http://jenkins.jenkins.svc.cluster.local:8080', '${JENKINS_SECRET}', '${JENKINS_AGENT_NAME}']
-    env:
-      - name: JENKINS_WEB_SOCKET
-        value: "true"
-    resources:
-      requests:
-        memory: "256Mi"
-        cpu: "250m"
-      limits:
-        memory: "512Mi"
-        cpu: "500m"
-  restartPolicy: Never
-
+    command: ["sleep"]
+    args: ["infinity"]
