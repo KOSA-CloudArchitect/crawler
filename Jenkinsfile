@@ -9,7 +9,7 @@ pipeline {
     }
 
     environment {
-        AWS_ACCOUNT_ID    = '<새_AWS_계정_ID_12자리>' // ❗ 이 값을 반드시 변경하세요!
+        AWS_ACCOUNT_ID    = '914215749228'
         AWS_REGION        = 'ap-northeast-2'
         ECR_REGISTRY      = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         ECR_REPOSITORY    = 'crawler'
