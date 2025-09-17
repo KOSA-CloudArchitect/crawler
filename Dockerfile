@@ -1,25 +1,38 @@
-# Dockerfile for crawler (arm64 compatible)
+# Dockerfile (Final Version for ARM64 with Chrome compatibility)
 
-# 1. 베이스 이미지 선택 (이전과 동일)
-FROM python:3.9-bullseye
+# 1. Base Image: Use Python 3.11-slim
+FROM python:3.11-slim
 
-# 2. 작업 디렉토리 설정
+# 2. Set Working Directory
 WORKDIR /app
 
-# 3. Debian 저장소를 통해 arm64용 Chromium 및 관련 도구 설치
+# 3. Install Chromium for ARM64 compatibility
+#    (undetected-chromedriver will use this as a base)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     chromium-driver \
+    xvfb \
+    unzip \
+    curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. Python 라이브러리 설치
+# 4. Copy and install Python libraries
+#    (Ensure undetected-chromedriver is in your requirements.txt)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. 애플리케이션 코드 복사
-COPY ./src ./src
-COPY README.md .
+# 5. Copy Source Code
+COPY src/ ./src/
 
-# 6. 컨테이너 실행 시 실행할 명령어
-CMD ["python", "src/main.py"]
+# 6. Set Ports and Environment Variables
+EXPOSE 8000
+ENV PYTHONPATH=/app/src
+ENV DISPLAY=:99
+
+# 7. Healthcheck and Application Command
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/proxy/status || exit 1
+
+WORKDIR /app/src
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
