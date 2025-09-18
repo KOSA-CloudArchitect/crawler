@@ -1,4 +1,4 @@
-// Jenkinsfile bulid test2
+// Jenkinsfile (Final Version with Branch-Specific Discord Notifications)
 
 pipeline {
     agent {
@@ -9,7 +9,7 @@ pipeline {
     }
 
     environment {
-        AWS_ACCOUNT_ID    = '914215749228'
+        AWS_ACCOUNT_ID    = '<새_AWS_계정_ID_12자리>' // ❗ 실제 AWS 계정 ID로 변경 필수!
         AWS_REGION        = 'ap-northeast-2'
         ECR_REGISTRY      = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         ECR_REPOSITORY    = 'crawler'
@@ -18,7 +18,7 @@ pipeline {
     }
 
     stages {
-        // Stage 1: Initialize variables available to all branches
+        // Stage 1: 모든 브랜치에서 공통으로 변수 초기화
         stage('⚙️ Initialize') {
             steps {
                 script {
@@ -28,7 +28,7 @@ pipeline {
             }
         }
 
-        // Stage 2: Verification for 'develop' branch and Pull Requests
+        // Stage 2: develop 브랜치 및 PR에서 코드 검증
         stage('✅ Verification & Build Check') {
             when {
                 anyOf {
@@ -48,7 +48,7 @@ pipeline {
             }
         }
 
-        // Stage 3 & 4: For 'main' branch only (Actual Deployment)
+        // Stage 3 & 4: main 브랜치에서만 실제 빌드 및 배포
         stage('🚀 Build & Push to ECR') {
             when { branch 'main' }
             steps {
@@ -92,27 +92,38 @@ pipeline {
         }
     }
 
-    // Post-build actions with corrected syntax
+    // 빌드 후 작업: 수정된 Discord 알림 로직 적용
     post {
         always {
             cleanWs()
         }
         success {
-            // The 'if' condition is now correctly wrapped in a 'script' step
             script {
                 if (env.BRANCH_NAME == 'main') {
+                    // main 브랜치 성공 알림
                     discordSend(
-                        description: "✅ 크롤러 CI/CD 파이프라인 성공!\n\n📌 이미지: `${env.FULL_IMAGE_NAME}`\n🔗 GitHub Commit: [${env.COMMIT_HASH}](${env.GITHUB_COMMIT_URL})",
+                        description: "✅ main 브랜치에서 빌드가 성공했습니다.\n\n📌 이미지: `${env.FULL_IMAGE_NAME}`\n🔗 GitHub Commit: [${env.COMMIT_HASH}](${env.GITHUB_COMMIT_URL})",
                         footer: "빌드 번호: ${env.BUILD_NUMBER}",
                         link: env.BUILD_URL,
                         result: currentBuild.currentResult,
-                        title: "크롤러 Jenkins Job",
+                        title: "크롤러 Jenkins Job [MAIN]",
+                        webhookURL: "https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa"
+                    )
+                } else if (env.BRANCH_NAME == 'develop') {
+                    // develop 브랜치 성공 알림
+                    discordSend(
+                        description: "✅ develop 브랜치에서 빌드가 성공했습니다.",
+                        footer: "빌드 번호: ${env.BUILD_NUMBER}",
+                        link: env.BUILD_URL,
+                        result: currentBuild.currentResult,
+                        title: "크롤러 Jenkins Job [DEVELOP]",
                         webhookURL: "https://discord.com/api/webhooks/1415897323028086804/4FgLSXOR5RU25KqJdK8MSgoAjxAabGzluiNpP44pBGWAWXcVBOfMjxyu0pmPpmqEO5sa"
                     )
                 }
             }
         }
         failure {
+            // 실패 시에는 모든 브랜치에서 동일한 형식의 알림 전송
             discordSend(
                 description: "❌ 크롤러 CI/CD 파이프라인 실패\n\n- 브랜치: `${env.BRANCH_NAME}`\n🔗 GitHub Commit: [${env.COMMIT_HASH}](${env.GITHUB_COMMIT_URL})",
                 footer: "빌드 번호: ${env.BUILD_NUMBER}",
