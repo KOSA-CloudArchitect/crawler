@@ -102,7 +102,7 @@ pipeline {
                 if (env.BRANCH_NAME == 'main') {
                     // main 브랜치 성공 알림
                     discordSend(
-                        description: "✅ main 브랜치에서 빌드가 성공했습니다.\n\n📌 이미지: `${env.FULL_IMAGE_NAME}`\n🔗 GitHub Commit: [${env.COMMIT_HASH}](${env.GITHUB_COMMIT_URL})",
+                        description: "✅ main 브랜치에서 빌드 푸시가 성공했습니다.\n\n📌 이미지: `${env.FULL_IMAGE_NAME}`\n🔗 GitHub Commit: [${env.COMMIT_HASH}](${env.GITHUB_COMMIT_URL})",
                         footer: "빌드 번호: ${env.BUILD_NUMBER}",
                         link: env.BUILD_URL,
                         result: currentBuild.currentResult,
@@ -112,7 +112,7 @@ pipeline {
                 } else if (env.BRANCH_NAME == 'develop') {
                     // develop 브랜치 성공 알림
                     discordSend(
-                        description: "✅ develop 브랜치에서 빌드가 성공했습니다.",
+                        description: "✅ develop 브랜치에서 빌드테스트가 성공했습니다.",
                         footer: "빌드 번호: ${env.BUILD_NUMBER}",
                         link: env.BUILD_URL,
                         result: currentBuild.currentResult,
