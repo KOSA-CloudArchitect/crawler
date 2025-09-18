@@ -3,6 +3,7 @@ import json
 import os
 from api.crawling_review import _now_kst_iso
 
+# 카프카 전송
 def send_to_kafka_bridge(message: dict, topic: str = "realtime-review-collection-topic") -> None:
     """
     Kafka Bridge에 dictionary 메시지를 전송하는 간단한 함수
