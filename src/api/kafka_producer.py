@@ -1,7 +1,9 @@
 import requests
 import json
 import os
+from api.crawling_review import _now_kst_iso
 
+# 카프카 전송
 def send_to_kafka_bridge(message: dict, topic: str = "realtime-review-collection-topic") -> None:
     """
     Kafka Bridge에 dictionary 메시지를 전송하는 간단한 함수
@@ -30,6 +32,61 @@ def send_to_kafka_bridge(message: dict, topic: str = "realtime-review-collection
         raise RuntimeError(f"Kafka 전송 실패: {e}")
 
 
+def send_crawling_completion(job_id: str, count: int, topic: str = "job-control-topic") -> None:
+    """
+    크롤링 작업 완료 메시지를 Kafka에 전송하는 함수
+    
+    :param job_id: 작업 ID
+    :param count: 크롤링된 데이터 개수
+    :param topic: Kafka 토픽 이름 (기본값: job-control-topic)
+    """
+    final_count = int(count)
+    
+    # count가 0이면 실패 처리
+    if final_count == 0:
+        data = {
+            "job_id": job_id, 
+            "status": "fail", 
+            "step": "collection", 
+            "failure_reason": "review count 0", 
+            "expected_count": final_count, 
+            "completed_at": _now_kst_iso()
+        }
+        print(data)
+        send_to_kafka_bridge(data, topic)
+        print('[WARN] 크롤링된 데이터가 없어 작업을 실패로 처리합니다.')
+    else:
+        data = {
+            "job_id": job_id, 
+            "status": "done", 
+            "step": "collection", 
+            "expected_count": final_count, 
+            "completed_at": _now_kst_iso()
+        }
+        print(data)
+        send_to_kafka_bridge(data, topic)
+
+
+def send_crawling_error(job_id: str, error_message: str = None, topic: str = "job-control-topic") -> None:
+    """
+    크롤링 작업 에러 메시지를 Kafka에 전송하는 함수
+    
+    :param job_id: 작업 ID
+    :param error_message: 에러 메시지 (선택사항)
+    :param topic: Kafka 토픽 이름 (기본값: job-control-topic)
+    """
+    data = {
+        "job_id": job_id, 
+        "status": "fail", 
+        "step": "collection", 
+        "completed_at": _now_kst_iso()
+    }
+    
+    if error_message:
+        data["failure_reason"] = error_message
+    
+    print(data)
+    send_to_kafka_bridge(data, topic)
 
 if __name__ == "__main__":
     BRIDGE = "http://k8s-kafka-mybridge-c20dbe855f-1e0ba73150b32ea1.elb.ap-northeast-2.amazonaws.com:8080"
