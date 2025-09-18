@@ -1,4 +1,4 @@
-from api.crawling_review import coupang_crawling, _now_kst_iso
+from api.crawling_review import coupang_crawling
 from api.driver_setup import start_xvfb
 from api.kafka_producer import send_crawling_completion, send_crawling_error
 
