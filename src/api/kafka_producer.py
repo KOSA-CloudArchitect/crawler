@@ -1,7 +1,20 @@
 import requests
 import json
 import os
-from api.crawling_review import _now_kst_iso
+from datetime import datetime, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None
+
+# KST(Asia/Seoul) 현재 시각 ISO 문자열 생성 (중복 정의하여 순환 의존성 방지)
+def _now_kst_iso() -> str:
+    try:
+        if ZoneInfo is not None:
+            return datetime.now(ZoneInfo("Asia/Seoul")).isoformat()
+    except Exception:
+        pass
+    return datetime.now(timezone(timedelta(hours=9))).isoformat()
 
 # 카프카 전송
 def send_to_kafka_bridge(message: dict, topic: str = "realtime-review-collection-topic") -> None:
