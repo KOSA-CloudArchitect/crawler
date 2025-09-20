@@ -46,8 +46,8 @@ def _worker_wrapper(args):
     return result or 0
 
 def run_product_one_multi_process(url: str, job_id: str, review_cnt: int, expected_count=None, counter_lock=None):
-    if review_cnt >= 300:
-        page_divide = [0,1,2]
+    if review_cnt >= 1000:
+        page_divide = list(range(0, 9))
     else:
         if review_cnt  < 100:
             review_cnt = 100
