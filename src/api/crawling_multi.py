@@ -31,7 +31,7 @@ def get_cpu_count():
     try:
         env_cpu_count = int(env_cpu_count)
         # 환경변수가 설정된 경우에만 CPU-1로 설정
-        cpu_count_value = max(1, env_cpu_count - 1)
+        cpu_count_value = max(1, env_cpu_count)
         print(f"[INFO] 환경변수 CRAWLER_CPU_COUNT: {env_cpu_count}, 실제 사용 CPU 수: {cpu_count_value}")
         return cpu_count_value
     except (ValueError, TypeError):
