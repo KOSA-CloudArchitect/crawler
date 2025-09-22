@@ -392,7 +392,7 @@ def get_product_review(driver, product_dict, page_divide):
         # 여러 상품 추출인 경우 처음 부터 끝까지 추출 되도록 하기
         while (1):
             loop_cnt += 1
-            for p in range(2,5):
+            for p in range(2,12):
                 try:
                     articles = driver.find_elements(By.CSS_SELECTOR, f"#{container_id} article")
 
